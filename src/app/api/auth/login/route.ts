@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { prisma } from "@/lib/prisma";
+import { prisma, assertDbReady } from "@/lib/prisma";
 import {
   establishSession,
   toSessionUser,
   verifyPassword,
 } from "@/lib/auth";
-import { clientIp, writeAudit } from "@/lib/api";
+import { clientIp, writeAudit, toErrorResponse } from "@/lib/api";
 
 const schema = z.object({
   identifier: z.string().min(3),
@@ -18,6 +18,16 @@ const MAX_FAILED = 5;
 const LOCK_MINUTES = 15;
 
 export async function POST(req: NextRequest) {
+  try {
+    return await handleLogin(req);
+  } catch (err) {
+    return toErrorResponse(err);
+  }
+}
+
+async function handleLogin(req: NextRequest) {
+  await assertDbReady();
+
   const body = await req.json().catch(() => null);
   const parsed = schema.safeParse(body);
   if (!parsed.success) {

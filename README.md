@@ -24,8 +24,8 @@ approvals, audit trail and role-based access.
 - Node.js 20+ (tested on 24)
 - No external database needed for local dev — `npm run dev` boots an in-memory
   MongoDB **replica set** automatically (`scripts/mongo-dev.mjs`, data persisted
-  under `.mongo-data/`). For production set `DATABASE_URL` to a real MongoDB /
-  Atlas cluster in `.env`.
+  under `node_modules/.cache/indiramma-mongo/`). For production set `DATABASE_URL`
+  to a real MongoDB / Atlas cluster — see `DEPLOYMENT.md`.
 
 ## Getting started
 

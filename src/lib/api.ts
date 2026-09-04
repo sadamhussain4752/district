@@ -2,8 +2,57 @@ import { NextRequest, NextResponse } from "next/server";
 import { ZodError } from "zod";
 import { getSession, type SessionUser } from "./auth";
 import { isReadOnly, canAccess, type FeatureKey } from "./rbac";
-import { prisma } from "./prisma";
+import { prisma, DatabaseUnavailableError } from "./prisma";
 import type { AuditAction } from "@prisma/client";
+
+/** Turn any thrown value into a JSON error response with a sensible status. */
+export function toErrorResponse(err: unknown): NextResponse {
+  if (err instanceof HttpError) {
+    return NextResponse.json({ error: err.message }, { status: err.status });
+  }
+  if (err instanceof ZodError) {
+    return NextResponse.json(
+      { error: "Validation failed", issues: err.flatten() },
+      { status: 422 },
+    );
+  }
+  if (
+    err instanceof DatabaseUnavailableError ||
+    isPrismaConnectionError(err)
+  ) {
+    console.error("[api] database unavailable:", errText(err));
+    return NextResponse.json(
+      {
+        error:
+          "Database unavailable. The DATABASE_URL environment variable is missing " +
+          "or the database cannot be reached from this deployment.",
+        code: "DB_UNAVAILABLE",
+      },
+      { status: 503 },
+    );
+  }
+  console.error("[api]", err);
+  return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+}
+
+function errText(err: unknown): string {
+  if (err instanceof Error) return `${err.name}: ${err.message}`;
+  return String(err);
+}
+
+function isPrismaConnectionError(err: unknown): boolean {
+  if (!(err instanceof Error)) return false;
+  const name = err.name || "";
+  const msg = err.message || "";
+  return (
+    name === "PrismaClientInitializationError" ||
+    /Environment variable not found: DATABASE_URL/.test(msg) ||
+    /Can't reach database server|ECONNREFUSED|ENOTFOUND|querySrv|getaddrinfo|Server selection timeout|connection <monitor> to/i.test(
+      msg,
+    ) ||
+    /needs to be a replica set|Transactions are not supported/i.test(msg)
+  );
+}
 
 export class HttpError extends Error {
   constructor(
@@ -41,20 +90,7 @@ export function route(
       const params = (await context.params) ?? {};
       return await handler({ req, user, params });
     } catch (err) {
-      if (err instanceof HttpError) {
-        return NextResponse.json({ error: err.message }, { status: err.status });
-      }
-      if (err instanceof ZodError) {
-        return NextResponse.json(
-          { error: "Validation failed", issues: err.flatten() },
-          { status: 422 },
-        );
-      }
-      console.error("[api]", err);
-      return NextResponse.json(
-        { error: "Internal server error" },
-        { status: 500 },
-      );
+      return toErrorResponse(err);
     }
   };
 }
