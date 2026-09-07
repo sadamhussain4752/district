@@ -121,17 +121,12 @@ body {
 }
 
 .map-district {
-  transition: fill 150ms ease, opacity 150ms ease, stroke-width 100ms ease;
+  transition: opacity 150ms ease, stroke-width 100ms ease;
   cursor: pointer;
-  stroke: hsl(var(--card));
-  stroke-width: 0.75;
 }
 .map-district:hover {
-  opacity: 0.85;
-  stroke: hsl(var(--foreground));
-  stroke-width: 1.25;
+  opacity: 0.82;
 }
 .map-district[data-selected="true"] {
-  stroke: hsl(var(--foreground));
-  stroke-width: 1.75;
+  opacity: 1;
 }

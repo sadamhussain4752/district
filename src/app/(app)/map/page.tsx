@@ -2,18 +2,28 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
+import { ArrowRight } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { StateMap } from "@/components/dashboard/state-map";
+import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/misc";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Badge } from "@/components/ui/badge";
-import {
-  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
-} from "@/components/ui/table";
+import { StateMap } from "@/components/dashboard/state-map";
 import { useFilters } from "@/components/app-shell/filters";
 import { formatINRCompact, formatNumber } from "@/lib/utils";
+import directory from "@/data/telangana-directory.json";
 import type { DistrictStat } from "@/lib/types";
+
+type DirEntry = { mandalCount: number; villageCount: number; mandals: string[] };
+const DIR = directory as Record<string, DirEntry>;
+const DIR_TOTALS = Object.values(DIR).reduce(
+  (a, d) => ({
+    districts: a.districts + 1,
+    mandals: a.mandals + d.mandalCount,
+    villages: a.villages + d.villageCount,
+  }),
+  { districts: 0, mandals: 0, villages: 0 },
+);
 
 export default function MapPage() {
   const router = useRouter();
@@ -25,117 +35,142 @@ export default function MapPage() {
   });
 
   const selected = data?.find((d) => d.id === districtId) ?? null;
+  const selectedDir = selected ? DIR[selected.name] : null;
 
-  const { data: mandals } = useQuery<any[]>({
-    queryKey: ["map-mandals", districtId],
-    queryFn: () =>
-      fetch(`/api/locations/mandals?districtId=${districtId}`).then((r) => r.json()),
-    enabled: !!districtId,
-  });
+  const totals = React.useMemo(
+    () =>
+      (data ?? []).reduce(
+        (a, d) => ({
+          applicants: a.applicants + d.applications,
+          beneficiaries: a.beneficiaries + d.approved,
+        }),
+        { applicants: 0, beneficiaries: 0 },
+      ),
+    [data],
+  );
 
   return (
     <div className="space-y-5">
       <PageHeader
-        title="Map Overview"
-        description="Geographical view of Indiramma Illu delivery across Telangana"
-        breadcrumbs={[{ label: "Home", href: "/dashboard" }, { label: "Map Overview" }]}
+        title="Telangana — District View"
+        description="Click a district to open its console. Colour = administrative district; hover for beneficiary counts."
+        breadcrumbs={[{ label: "Home", href: "/dashboard" }, { label: "Map" }]}
       />
 
-      <div className="grid gap-4 lg:grid-cols-3">
-        <Card className="lg:col-span-2">
-          <CardHeader>
-            <CardTitle>Telangana — District Completion</CardTitle>
-          </CardHeader>
-          <CardContent>
+      <div className="grid gap-4 lg:grid-cols-[1fr_320px]">
+        <Card>
+          <CardContent className="p-3 sm:p-4">
             {isLoading ? (
-              <Skeleton className="h-[460px] w-full" />
+              <Skeleton className="h-[520px] w-full" />
             ) : (
               <StateMap
                 stats={data ?? []}
                 selectedDistrictId={districtId}
+                colorMode="district"
+                showLabels
                 onSelect={(d) => setDistrict(d?.id ?? null, d?.name ?? null)}
               />
             )}
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>{selected ? selected.name : "Select a district"}</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {!selected && (
-              <p className="text-sm text-muted-foreground">
-                Click a district on the map to see its overview and drill into
-                mandals.
+        <div className="space-y-4">
+          {/* Statewide snapshot */}
+          <Card>
+            <CardContent className="pt-5">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                Statewide Snapshot
               </p>
-            )}
-            {selected && (
-              <>
-                <Stat k="Applications" v={formatNumber(selected.applications)} />
-                <Stat k="Approved" v={formatNumber(selected.approved)} />
-                <Stat k="Construction Started" v={formatNumber(selected.started)} />
-                <Stat k="Under Construction" v={formatNumber(selected.underConstruction)} />
-                <Stat k="Completed" v={formatNumber(selected.completed)} />
-                <Stat k="Not Started" v={formatNumber(selected.notStarted)} />
-                <Stat k="Delayed" v={formatNumber(selected.delayed)} />
-                <Stat k="Project Value" v={formatINRCompact(selected.projectValue)} />
-                <Stat k="Amount Spent" v={formatINRCompact(selected.spent)} />
-                <div className="pt-1">
-                  <div className="mb-1 flex justify-between text-xs text-muted-foreground">
-                    <span>Completion</span>
-                    <span className="font-semibold text-foreground">
-                      {selected.completionPct.toFixed(1)}%
-                    </span>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Counts across all beneficiary files in this console.
+              </p>
+              <div className="mt-4 grid grid-cols-2 gap-4">
+                <Metric label="Total Applicants" value={formatNumber(totals.applicants)} />
+                <Metric label="Total Beneficiaries" value={formatNumber(totals.beneficiaries)} />
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Registration directory */}
+          <Card>
+            <CardContent className="pt-5">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                Registration Directory
+              </p>
+              <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-3">
+                <Metric label="Districts" value={formatNumber(DIR_TOTALS.districts)} />
+                <Metric label="Mandals" value={formatNumber(DIR_TOTALS.mandals)} />
+                <Metric label="Villages" value={formatNumber(DIR_TOTALS.villages)} />
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Selected district */}
+          <Card className={selected ? "border-primary/40" : undefined}>
+            <CardContent className="pt-5">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                Selected District
+              </p>
+              {!selected ? (
+                <p className="mt-2 text-sm text-muted-foreground">
+                  Click a district on the map.
+                </p>
+              ) : (
+                <>
+                  <p className="mt-1 text-lg font-semibold">{selected.name}</p>
+                  <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-3">
+                    <Metric label="Applicants" value={formatNumber(selected.applications)} />
+                    <Metric label="Linked Beneficiaries" value={formatNumber(selected.approved)} />
+                    <Metric label="Mandals (dir.)" value={formatNumber(selectedDir?.mandalCount ?? 0)} />
+                    <Metric label="Villages (dir.)" value={formatNumber(selectedDir?.villageCount ?? 0)} />
+                    <Metric label="Started" value={formatNumber(selected.started)} />
+                    <Metric label="Completed" value={formatNumber(selected.completed)} />
                   </div>
-                  <Progress value={selected.completionPct} className="h-2" />
-                </div>
-              </>
-            )}
-          </CardContent>
-        </Card>
+                  <div className="mt-3">
+                    <div className="mb-1 flex justify-between text-xs text-muted-foreground">
+                      <span>Completion</span>
+                      <span className="font-semibold text-foreground">
+                        {selected.completionPct.toFixed(1)}%
+                      </span>
+                    </div>
+                    <Progress value={selected.completionPct} className="h-2" />
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Project value {formatINRCompact(selected.projectValue)} · spent{" "}
+                      {formatINRCompact(selected.spent)}
+                    </p>
+                  </div>
+                  <Button
+                    className="mt-4 w-full"
+                    variant="success"
+                    onClick={() =>
+                      router.push(`/beneficiaries?districtId=${selected.id}`)
+                    }
+                  >
+                    Open reports for this district <ArrowRight className="h-4 w-4" />
+                  </Button>
+                </>
+              )}
+            </CardContent>
+          </Card>
+        </div>
       </div>
 
-      {selected && (
+      {selected && selectedDir && (
         <Card>
-          <CardHeader>
-            <CardTitle>{selected.name} — Mandals</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Mandal</TableHead>
-                  <TableHead>Code</TableHead>
-                  <TableHead className="text-right">Action</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {mandals?.map((m) => (
-                  <TableRow key={m.id}>
-                    <TableCell className="font-medium">{m.name}</TableCell>
-                    <TableCell className="text-xs text-muted-foreground">{m.code}</TableCell>
-                    <TableCell className="text-right">
-                      <button
-                        onClick={() =>
-                          router.push(`/beneficiaries?mandalId=${m.id}`)
-                        }
-                        className="text-xs text-primary hover:underline"
-                      >
-                        View beneficiaries →
-                      </button>
-                    </TableCell>
-                  </TableRow>
-                ))}
-                {!mandals?.length && (
-                  <TableRow>
-                    <TableCell colSpan={3} className="text-center text-sm text-muted-foreground">
-                      Loading mandals…
-                    </TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
+          <CardContent className="pt-5">
+            <p className="mb-3 text-sm font-semibold">
+              {selected.name} — {selectedDir.mandalCount} mandals (LGD directory)
+            </p>
+            <div className="flex flex-wrap gap-1.5">
+              {selectedDir.mandals.map((m) => (
+                <span
+                  key={m}
+                  className="rounded-md border bg-muted/40 px-2 py-1 text-xs"
+                >
+                  {m}
+                </span>
+              ))}
+            </div>
           </CardContent>
         </Card>
       )}
@@ -143,11 +178,13 @@ export default function MapPage() {
   );
 }
 
-function Stat({ k, v }: { k: string; v: string }) {
+function Metric({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex items-center justify-between border-b pb-1.5 text-sm last:border-0">
-      <span className="text-muted-foreground">{k}</span>
-      <span className="font-medium tabular-nums">{v}</span>
+    <div>
+      <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
+        {label}
+      </p>
+      <p className="mt-0.5 text-xl font-bold tabular-nums">{value}</p>
     </div>
   );
 }

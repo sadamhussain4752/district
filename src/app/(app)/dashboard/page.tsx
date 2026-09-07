@@ -132,6 +132,7 @@ export default function DashboardPage() {
               <StateMap
                 stats={districts.data ?? []}
                 selectedDistrictId={districtId}
+                showLabels
                 onSelect={(d) => setDistrict(d?.id ?? null, d?.name ?? null)}
               />
             )}

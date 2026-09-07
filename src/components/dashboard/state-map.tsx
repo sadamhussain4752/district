@@ -11,25 +11,40 @@ const GEO = tgGeo as unknown as FeatureCollection<
   { name: string; geoKey: string }
 >;
 
-const WIDTH = 640;
-const HEIGHT = 460;
+const WIDTH = 720;
+const HEIGHT = 520;
 
-function colorFor(pct: number, hasData: boolean) {
-  if (!hasData) return "hsl(214 20% 88%)";
-  if (pct >= 80) return "hsl(142 60% 40%)";
-  if (pct >= 50) return "hsl(217 71% 45%)";
-  if (pct >= 20) return "hsl(38 92% 50%)";
-  return "hsl(0 72% 52%)";
+/** Soft, distinct fill per district (index-based, like a printed admin map). */
+const DISTRICT_PALETTE = [
+  "#cfe3f7", "#d9f0da", "#f7dce6", "#f3e8c8", "#e6dbf5", "#f6ddc9", "#d4eef0",
+  "#f7d6d6", "#e3eccb", "#d7e0f5", "#f9e7bf", "#d5f2e4", "#f0d7ef", "#dbeafe",
+  "#fde8d0", "#d8f3dc", "#fcd8e3", "#e8e2c6", "#e9dcfb", "#f8dcc7", "#cdeef2",
+  "#f9d5d5", "#dff0c8", "#dae3f7", "#fbeac2", "#d2f0df", "#f2daf0", "#e0ecff",
+  "#fdeed6", "#dbf5e0", "#fbdce8", "#ece5c9", "#ecdffc",
+];
+
+function completionColor(pct: number, hasData: boolean) {
+  if (!hasData) return "hsl(214 20% 90%)";
+  if (pct >= 80) return "hsl(142 60% 45%)";
+  if (pct >= 50) return "hsl(217 71% 55%)";
+  if (pct >= 20) return "hsl(38 92% 55%)";
+  return "hsl(0 72% 58%)";
 }
 
 export function StateMap({
   stats,
   selectedDistrictId,
   onSelect,
+  colorMode = "completion",
+  showLabels = false,
+  height,
 }: {
   stats: DistrictStat[];
   selectedDistrictId: string | null;
   onSelect: (d: DistrictStat | null) => void;
+  colorMode?: "completion" | "district";
+  showLabels?: boolean;
+  height?: number;
 }) {
   const [hover, setHover] = React.useState<{
     stat: DistrictStat | null;
@@ -38,9 +53,14 @@ export function StateMap({
     y: number;
   } | null>(null);
 
-  const { path, features } = React.useMemo(() => {
+  const { path, features, centroids } = React.useMemo(() => {
     const projection = geoMercator().fitSize([WIDTH, HEIGHT], GEO);
-    return { path: geoPath(projection), features: GEO.features };
+    const p = geoPath(projection);
+    return {
+      path: p,
+      features: GEO.features,
+      centroids: GEO.features.map((f) => p.centroid(f)),
+    };
   }, []);
 
   const byGeoKey = React.useMemo(() => {
@@ -48,13 +68,11 @@ export function StateMap({
     for (const s of stats) if (s.geoKey) m.set(s.geoKey, s);
     return m;
   }, [stats]);
-
   const byName = React.useMemo(() => {
     const m = new Map<string, DistrictStat>();
     for (const s of stats) m.set(s.name.toLowerCase(), s);
     return m;
   }, [stats]);
-
   const resolve = (props: { name: string; geoKey: string }) =>
     byGeoKey.get(props.geoKey) ?? byName.get(props.name.toLowerCase()) ?? null;
 
@@ -63,68 +81,101 @@ export function StateMap({
       <svg
         viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
         className="h-auto w-full"
+        style={height ? { maxHeight: height } : undefined}
         role="img"
-        aria-label="Telangana district completion map"
+        aria-label="Telangana district map"
         onMouseLeave={() => setHover(null)}
       >
         {features.map((f, i) => {
           const stat = resolve(f.properties);
           const d = path(f) ?? undefined;
-          const selected = stat && stat.id === selectedDistrictId;
+          const selected =
+            (stat && stat.id === selectedDistrictId) ||
+            hover?.name === f.properties.name;
+          const fill =
+            colorMode === "district"
+              ? DISTRICT_PALETTE[i % DISTRICT_PALETTE.length]
+              : completionColor(stat?.completionPct ?? 0, !!stat);
           return (
             <path
-              key={i}
+              key={f.properties.name}
               d={d}
               className="map-district"
               data-selected={selected ? "true" : "false"}
-              fill={colorFor(stat?.completionPct ?? 0, !!stat)}
+              fill={fill}
+              stroke={selected ? "hsl(0 72% 50%)" : "hsl(0 0% 100%)"}
+              strokeWidth={selected ? 1.8 : 0.7}
               onMouseMove={(e) => {
                 const rect = (
                   e.currentTarget.ownerSVGElement as SVGSVGElement
                 ).getBoundingClientRect();
+                const scale = WIDTH / rect.width;
                 setHover({
                   stat,
                   name: f.properties.name,
-                  x: e.clientX - rect.left,
-                  y: e.clientY - rect.top,
+                  x: (e.clientX - rect.left) * scale,
+                  y: (e.clientY - rect.top) * scale,
                 });
               }}
-              onClick={() =>
-                stat &&
-                onSelect(stat.id === selectedDistrictId ? null : stat)
-              }
+              onClick={() => onSelect(stat ?? null)}
             />
           );
         })}
+
+        {showLabels &&
+          features.map((f, i) => {
+            const [cx, cy] = centroids[i];
+            if (!Number.isFinite(cx)) return null;
+            return (
+              <text
+                key={`l-${f.properties.name}`}
+                x={cx}
+                y={cy}
+                textAnchor="middle"
+                dominantBaseline="middle"
+                className="pointer-events-none select-none"
+                style={{
+                  fontSize: 9,
+                  fontWeight: 600,
+                  fill: "hsl(222 30% 25%)",
+                  paintOrder: "stroke",
+                  stroke: "hsla(0,0%,100%,0.85)",
+                  strokeWidth: 2.5,
+                }}
+              >
+                {f.properties.name}
+              </text>
+            );
+          })}
       </svg>
 
-      {/* Legend */}
-      <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
-        <LegendDot color="hsl(142 60% 40%)" label="≥ 80% completed" />
-        <LegendDot color="hsl(217 71% 45%)" label="50–80%" />
-        <LegendDot color="hsl(38 92% 50%)" label="20–50%" />
-        <LegendDot color="hsl(0 72% 52%)" label="< 20% / critical" />
-        <LegendDot color="hsl(214 20% 88%)" label="No data" />
-      </div>
+      {colorMode === "completion" && (
+        <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
+          <LegendDot color="hsl(142 60% 45%)" label="≥ 80% completed" />
+          <LegendDot color="hsl(217 71% 55%)" label="50–80%" />
+          <LegendDot color="hsl(38 92% 55%)" label="20–50%" />
+          <LegendDot color="hsl(0 72% 58%)" label="< 20% / critical" />
+          <LegendDot color="hsl(214 20% 90%)" label="No data" />
+        </div>
+      )}
 
       {hover && (
         <div
-          className="pointer-events-none absolute z-20 w-56 rounded-md border bg-popover p-3 text-xs shadow-lg"
+          className="pointer-events-none absolute z-20 w-60 rounded-xl border bg-popover/95 p-4 text-xs shadow-xl backdrop-blur"
           style={{
-            left: Math.min(hover.x + 12, WIDTH - 200),
-            top: hover.y + 12,
+            left: `${Math.min((hover.x / WIDTH) * 100, 62)}%`,
+            top: `${Math.min((hover.y / HEIGHT) * 100 + 3, 70)}%`,
           }}
         >
-          <div className="mb-1 text-sm font-semibold">{hover.name}</div>
+          <div className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+            District
+          </div>
+          <div className="mb-2 text-base font-semibold">{hover.name}</div>
           {hover.stat ? (
-            <dl className="space-y-0.5">
-              <Row k="Applications" v={formatNumber(hover.stat.applications)} />
-              <Row k="Approved" v={formatNumber(hover.stat.approved)} />
+            <dl className="space-y-1">
+              <Row k="Applicants" v={formatNumber(hover.stat.applications)} />
+              <Row k="Beneficiaries" v={formatNumber(hover.stat.approved)} />
               <Row k="Started" v={formatNumber(hover.stat.started)} />
-              <Row
-                k="Under Construction"
-                v={formatNumber(hover.stat.underConstruction)}
-              />
               <Row k="Completed" v={formatNumber(hover.stat.completed)} />
               <Row k="Not Started" v={formatNumber(hover.stat.notStarted)} />
               <Row k="Project Value" v={formatINRCompact(hover.stat.projectValue)} />
@@ -136,10 +187,12 @@ export function StateMap({
               />
             </dl>
           ) : (
-            <p className="text-muted-foreground">No project data yet.</p>
+            <p className="text-muted-foreground">
+              No beneficiary files linked in this district yet.
+            </p>
           )}
-          <p className="mt-1.5 text-[10px] text-muted-foreground">
-            Click to filter the dashboard
+          <p className="mt-2 border-t pt-1.5 text-[10px] text-muted-foreground">
+            Click to open this district
           </p>
         </div>
       )}
