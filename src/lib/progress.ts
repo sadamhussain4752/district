@@ -31,7 +31,9 @@ export function deriveHouseStatus(
   progress: number,
   stages: Pick<HouseStageProgress, "stageKey" | "status">[],
 ): HouseStatus {
-  const completion = stages.find((s) => s.stageKey === "COMPLETION");
+  const completion = stages.find(
+    (s) => s.stageKey === "COMP" || s.stageKey === "COMPLETION",
+  );
   const handover = stages.find((s) => s.stageKey === "HANDOVER");
   if (handover && DONE.includes(handover.status)) return "HANDED_OVER";
   if (completion && DONE.includes(completion.status)) return "COMPLETED";

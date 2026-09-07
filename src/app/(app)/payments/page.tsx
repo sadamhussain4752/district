@@ -7,6 +7,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { formatINR, formatDate } from "@/lib/utils";
+import { PAYMENT_MILESTONE_LABELS } from "@/lib/constants";
 
 type Row = {
   id: string;
@@ -37,7 +38,7 @@ const columns: Column<Row>[] = [
       </div>
     ),
   },
-  { key: "milestone", header: "Milestone", render: (r) => `${r.milestone[0]}${r.milestone.slice(1).toLowerCase()}` },
+  { key: "milestone", header: "Milestone", render: (r) => PAYMENT_MILESTONE_LABELS[r.milestone] ?? r.milestone },
   { key: "eligibleAmount", header: "Eligible", sortable: true, className: "text-right", render: (r) => <span className="tabular-nums">{formatINR(r.eligibleAmount)}</span> },
   { key: "releasedAmount", header: "Released", sortable: true, className: "text-right", render: (r) => <span className="tabular-nums">{formatINR(r.releasedAmount)}</span> },
   { key: "txnRef", header: "Txn Ref", render: (r) => <span className="text-xs">{r.txnRef || "—"}</span> },

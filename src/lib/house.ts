@@ -19,6 +19,7 @@ export async function createHouseForBeneficiary(beneficiaryId: string) {
 
   const stateCode = DEPLOY_STATE === "AP" ? "AP" : "TG";
   const houseCode = await nextHouseCode(stateCode, ben.district.code);
+  const first = CONSTRUCTION_STAGES[0];
 
   const house = await prisma.house.create({
     data: {
@@ -32,8 +33,8 @@ export async function createHouseForBeneficiary(beneficiaryId: string) {
       contractorId: ben.contractorId,
       projectManagerId: ben.projectManagerId,
       estimatedCost: ben.sanctionAmount || 0,
-      currentStageKey: "APPROVED",
-      currentStageName: "Beneficiary Approved",
+      currentStageKey: first.key,
+      currentStageName: first.name,
       status: "NOT_STARTED",
     },
   });
@@ -44,9 +45,10 @@ export async function createHouseForBeneficiary(beneficiaryId: string) {
       stageKey: s.key,
       stageName: s.name,
       sequence: i + 1,
-      status: (s.key === "APPROVED" ? "COMPLETED" : "NOT_STARTED") as StageStatus,
-      progressPct: s.key === "APPROVED" ? 100 : 0,
-      approvalStatus: (s.key === "APPROVED" ? "APPROVED" : "PENDING") as ApprovalStatus,
+      status: "NOT_STARTED" as StageStatus,
+      progressPct: 0,
+      billValue: s.billValue,
+      approvalStatus: "PENDING" as ApprovalStatus,
     })),
   });
 

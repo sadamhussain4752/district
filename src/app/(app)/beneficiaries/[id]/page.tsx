@@ -21,7 +21,7 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { formatINR, formatDate, pct } from "@/lib/utils";
-import { BENEFICIARY_STATUS_LABELS } from "@/lib/constants";
+import { BENEFICIARY_STATUS_LABELS, PAYMENT_MILESTONE_LABELS } from "@/lib/constants";
 
 const STATUS_FLOW = Object.keys(BENEFICIARY_STATUS_LABELS);
 
@@ -103,12 +103,12 @@ export default function BeneficiaryDetailPage() {
       {/* Header summary */}
       <Card>
         <CardContent className="grid gap-4 pt-5 sm:grid-cols-2 lg:grid-cols-4">
-          <Field label="Beneficiary ID" value={b.beneficiaryCode} />
-          <Field label="Application No" value={b.applicationNo} />
+          <Field label="Application ID" value={b.applicationId ?? b.applicationNo} />
+          <Field label="AST Code" value={b.astCode ?? b.beneficiaryCode} />
           <Field label="District / Mandal / Village" value={`${b.district?.name} / ${b.mandal?.name} / ${b.village?.name}`} />
           <Field label="Overall Status" value={<StatusBadge status={b.status} />} />
-          <Field label="Assigned Contractor" value={b.contractor?.companyName} />
-          <Field label="Project Manager" value={b.projectManager?.name} />
+          <Field label="Contractor" value={b.contractor?.companyName} />
+          <Field label="MOU Status" value={b.mouStatus} />
           <Field
             label="Current Stage"
             value={house?.currentStageName ?? "House not created"}
@@ -132,6 +132,7 @@ export default function BeneficiaryDetailPage() {
           <TabsTrigger value="house">House Information</TabsTrigger>
           <TabsTrigger value="progress">Construction Progress</TabsTrigger>
           <TabsTrigger value="payments">Payments</TabsTrigger>
+          <TabsTrigger value="cards">Cards</TabsTrigger>
           <TabsTrigger value="documents">Documents</TabsTrigger>
         </TabsList>
 
@@ -142,12 +143,12 @@ export default function BeneficiaryDetailPage() {
               <CardContent className="grid grid-cols-2 gap-4">
                 <Field label="Scheme" value={b.scheme} />
                 <Field label="Financial Year" value={b.financialYear} />
-                <Field label="Sanction No" value={b.sanctionNo} />
-                <Field label="Sanction Date" value={formatDate(b.sanctionDate)} />
-                <Field label="Sanction Amount" value={formatINR(b.sanctionAmount)} />
-                <Field label="House Type" value={b.houseType} />
-                <Field label="Land Ownership" value={b.landOwnership} />
-                <Field label="Plot Details" value={b.plotDetails} />
+                <Field label="House Size" value={b.sft ?? b.houseType} />
+                <Field label="Initial List Type" value={b.initialListType} />
+                <Field label="MOU Date" value={formatDate(b.mouDate)} />
+                <Field label="MOU Status" value={b.mouStatus} />
+                <Field label="Contract Value" value={formatINR(b.sanctionAmount)} />
+                <Field label="CMS A/c Status" value={b.cmsAccountStatus} />
               </CardContent>
             </Card>
             <Card>
@@ -189,9 +190,11 @@ export default function BeneficiaryDetailPage() {
               <Field label="Mobile" value={b.mobile} />
               <Field label="Alternate Mobile" value={b.altMobile} />
               <Field label="Aadhaar Number" value={b.aadhaarDisplay} />
+              <Field label="ICICI Disbursement A/c" value={b.iciciAccountDisplay} />
+              <Field label="Card Holder Name" value={b.cardHolderName} />
+              <Field label="Reference Number" value={b.referenceNumber} />
               <Field label="Bank Account" value={b.bankAccountDisplay} />
               <Field label="IFSC" value={b.ifsc} />
-              <Field label="Bank Name" value={b.bankName} />
             </CardContent>
           </Card>
         </TabsContent>
@@ -292,7 +295,7 @@ export default function BeneficiaryDetailPage() {
                     {b.payments.map((p: any) => (
                       <TableRow key={p.id}>
                         <TableCell className="font-medium">
-                          {p.milestone[0] + p.milestone.slice(1).toLowerCase()} Payment
+                          {PAYMENT_MILESTONE_LABELS[p.milestone] ?? p.milestone}
                         </TableCell>
                         <TableCell className="text-right tabular-nums">
                           {formatINR(p.eligibleAmount)}
@@ -311,6 +314,74 @@ export default function BeneficiaryDetailPage() {
             </Card>
           ) : (
             <EmptyState title="No payment milestones" />
+          )}
+        </TabsContent>
+
+        <TabsContent value="cards">
+          {b.cards?.length ? (
+            <Card>
+              <CardContent className="pt-5">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Card Number</TableHead>
+                      <TableHead>Holder</TableHead>
+                      <TableHead>Product</TableHead>
+                      <TableHead>Account</TableHead>
+                      <TableHead className="text-right">Balance</TableHead>
+                      <TableHead>Status</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {b.cards.map((c: any) => (
+                      <TableRow key={c.id}>
+                        <TableCell className="font-mono text-xs">{c.cardNumberDisplay}</TableCell>
+                        <TableCell>{c.holderName || "—"}</TableCell>
+                        <TableCell className="text-xs">
+                          {c.productName || "—"}
+                          <div className="text-muted-foreground">{c.cardType}</div>
+                        </TableCell>
+                        <TableCell className="font-mono text-xs">{c.accountNumber || "—"}</TableCell>
+                        <TableCell className="text-right tabular-nums">{formatINR(c.accountBalance)}</TableCell>
+                        <TableCell><StatusBadge status={c.status} /></TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+                {b.cashCollections?.length > 0 && (
+                  <div className="mt-5">
+                    <h4 className="mb-2 text-sm font-semibold">Cash Collected from Beneficiary</h4>
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Date</TableHead>
+                          <TableHead>Stage</TableHead>
+                          <TableHead>Collected By</TableHead>
+                          <TableHead className="text-right">Amount</TableHead>
+                          <TableHead>Remarks</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {b.cashCollections.map((cc: any) => (
+                          <TableRow key={cc.id}>
+                            <TableCell className="text-xs">{formatDate(cc.date)}</TableCell>
+                            <TableCell>{cc.stageKey || "—"}</TableCell>
+                            <TableCell>{cc.collectedBy || "—"}</TableCell>
+                            <TableCell className="text-right tabular-nums">{formatINR(cc.amount)}</TableCell>
+                            <TableCell className="text-xs text-muted-foreground">{cc.remarks || "—"}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          ) : (
+            <EmptyState
+              title="No payment card on record"
+              description="ICICI / Golden Rock / Eesha disbursement cards from the CMS portal appear here once issued."
+            />
           )}
         </TabsContent>
 

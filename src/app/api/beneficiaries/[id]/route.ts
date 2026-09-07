@@ -31,7 +31,7 @@ export const GET = route(
       });
     }
 
-    const [payments, documents, contractor, pm] = await Promise.all([
+    const [payments, documents, contractor, pm, cards, cashCollections] = await Promise.all([
       prisma.beneficiaryPayment.findMany({
         where: { beneficiaryId: b.id },
         orderBy: { createdAt: "asc" },
@@ -49,6 +49,19 @@ export const GET = route(
             select: { id: true, name: true, mobile: true },
           })
         : null,
+      prisma.beneficiaryCard.findMany({
+        where: {
+          OR: [
+            { beneficiaryId: b.id },
+            b.applicationId ? { applicationId: b.applicationId } : { id: "none" },
+          ],
+        },
+        orderBy: { createdAt: "desc" },
+      }),
+      prisma.cashCollection.findMany({
+        where: { beneficiaryId: b.id },
+        orderBy: { date: "desc" },
+      }),
     ]);
 
     return NextResponse.json({
@@ -62,11 +75,23 @@ export const GET = route(
       bankAccountDisplay: sensitive
         ? b.bankAccountEnc ?? "—"
         : maskAccount(b.bankAccountLast4),
+      iciciAccountDisplay: sensitive
+        ? b.iciciAccountEnc ?? "—"
+        : maskAccount(b.iciciAccountLast4),
       canViewSensitive: sensitive,
       payments,
       documents,
       contractor,
       projectManager: pm,
+      cards: cards.map((c) => ({
+        ...c,
+        cardNumberDisplay: sensitive
+          ? c.cardNumberEnc ?? "—"
+          : c.cardNumberLast4
+            ? `•••• •••• •••• ${c.cardNumberLast4}`
+            : "—",
+      })),
+      cashCollections,
     });
   },
   { feature: "beneficiaries" },

@@ -397,6 +397,8 @@ model Beneficiary {
   id                String            @id @default(auto()) @map("_id") @db.ObjectId
   beneficiaryCode   String            @unique
   applicationNo     String            @unique
+  applicationId     String?           @unique // govt application id e.g. 257970/461770
+  astCode           String?           // Astonic internal code e.g. AST-590
   registrationNo    String?
   name              String
   guardianName      String?
@@ -412,6 +414,18 @@ model Beneficiary {
   bankAccountEnc    String?
   ifsc              String?
   bankName          String?
+
+  // ICICI disbursement card / account (Indiramma payment rail)
+  iciciAccountLast4 String?
+  iciciAccountEnc   String?
+  referenceNumber   String?
+  cmsAccountStatus  String?           // ACTIVE / LOST-STOLEN / CLOSED
+  cardHolderName    String?
+
+  sft               String?           // house size band e.g. "400-SFT"
+  initialListType   String?           // List 1 / List 2 / List 3
+  mouDate           DateTime?
+  mouStatus         String?
 
   address           String?
   stateId           String            @db.ObjectId
@@ -447,11 +461,68 @@ model Beneficiary {
 
   house             House?
   payments          BeneficiaryPayment[]
+  cards             BeneficiaryCard[]
+  cashCollections   CashCollection[]
 
   @@index([districtId])
   @@index([mandalId])
   @@index([status])
   @@index([projectId])
+  @@index([astCode])
+}
+
+// Payment card issued to a beneficiary (CMS portal export).
+model BeneficiaryCard {
+  id             String       @id @default(auto()) @map("_id") @db.ObjectId
+  beneficiaryId  String?      @db.ObjectId
+  beneficiary    Beneficiary? @relation(fields: [beneficiaryId], references: [id])
+  applicationId  String?
+  cardNumberLast4 String?
+  cardNumberEnc  String?
+  holderName     String?
+  status         String?      // ACTIVE / LOST-STOLEN / CLOSED
+  accountNumber  String?
+  accountBalance Float        @default(0)
+  ledgerBalance  Float        @default(0)
+  currency       String       @default("INR")
+  productName    String?      // VISA PAYDIRECT CARDS
+  cardType       String?      // UMANG CARD CONTACTLESS EMV
+  aadhaarLast4   String?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@index([beneficiaryId])
+  @@index([applicationId])
+  @@index([status])
+}
+
+// Cash collected from a beneficiary toward their contribution (Cash_Transaction sheet).
+model CashCollection {
+  id            String       @id @default(auto()) @map("_id") @db.ObjectId
+  beneficiaryId String?      @db.ObjectId
+  beneficiary   Beneficiary? @relation(fields: [beneficiaryId], references: [id])
+  applicationId String?
+  date          DateTime?
+  districtId    String?      @db.ObjectId
+  stageKey      String?
+  collectedBy   String?      // person name
+  amount        Float        @default(0)
+  remarks       String?
+  createdAt     DateTime     @default(now())
+
+  @@index([beneficiaryId])
+  @@index([applicationId])
+}
+
+// Labour contractor (site gang lead). Names in the source are inconsistent; normalised on import.
+model LabourContractor {
+  id           String   @id @default(auto()) @map("_id") @db.ObjectId
+  name         String   @unique
+  districtIds  String[] @db.ObjectId
+  totalHouses  Int      @default(0)
+  totalPaid    Float    @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 }
 
 // ---------------------------------------------------------------------------
@@ -518,10 +589,12 @@ model ConstructionStage {
   key          String   @unique
   sequence     Int
   name         String
+  shortName    String?
   isMandatory  Boolean  @default(true)
   needsQC      Boolean  @default(false)
   paymentMilestone PaymentMilestone?
   weightPct    Float    @default(0)
+  billValue    Float    @default(0)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 }
@@ -551,12 +624,38 @@ model HouseStageProgress {
   qcResult       InspectionResult?
   approvalStatus ApprovalStatus @default(PENDING)
 
+  // Operational fields from the Astonic / Indiramma workflow
+  onlineStatus        String?   // Entry_Pending / AE / PD / Collector / EE / CE / MD / MD-Approve Payment Done
+  offlineStage        String?
+  labourContractorName String?
+  supervisorName      String?
+  capturedOn          DateTime?
+
+  billValue      Float       @default(0)
+  receivedAmount Float       @default(0)
+  balanceAmount  Float       @default(0)
+  paymentMode    String?
+  paymentDate    DateTime?
+  paymentBankName String?
+  utrNumber      String?
+
+  // Approval-chain checkpoint dates (PS -> AE -> PD -> Collector -> EE -> CE -> MD)
+  psDate         DateTime?
+  aeDate         DateTime?
+  pdDate         DateTime?
+  collectorDate  DateTime?
+  eeDate         DateTime?
+  ceDate         DateTime?
+  mdDate         DateTime?
+
   createdAt      DateTime    @default(now())
   updatedAt      DateTime    @updatedAt
   updatedBy      String?
 
   @@index([houseId])
   @@index([status])
+  @@index([stageKey])
+  @@index([onlineStatus])
 }
 
 model StagePhoto {

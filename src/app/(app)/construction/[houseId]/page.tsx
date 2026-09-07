@@ -26,6 +26,7 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { formatINR, formatDate, formatDateTime, pct } from "@/lib/utils";
+import { PAYMENT_MILESTONE_LABELS } from "@/lib/constants";
 import { STAGE_STATUS_LABELS } from "@/lib/constants";
 
 function F({ label, value }: { label: string; value: React.ReactNode }) {
@@ -275,7 +276,7 @@ export default function HouseDetailPage() {
                 <TableBody>
                   {h.payments.map((p: any) => (
                     <TableRow key={p.id}>
-                      <TableCell className="font-medium">{p.milestone}</TableCell>
+                      <TableCell className="font-medium">{PAYMENT_MILESTONE_LABELS[p.milestone] ?? p.milestone}</TableCell>
                       <TableCell className="text-right tabular-nums">{formatINR(p.eligibleAmount)}</TableCell>
                       <TableCell className="text-right tabular-nums">{formatINR(p.releasedAmount)}</TableCell>
                       <TableCell><StatusBadge status={p.status} /></TableCell>

@@ -28,41 +28,65 @@ export const FINANCIAL_YEARS = [
 ];
 export const CURRENT_FY = "2025-26";
 
-/** Construction stage master — seeded into ConstructionStage. */
+/**
+ * Construction stage master — the real Indiramma Indlu / Astonic workflow.
+ * Auger → BL (basement/plinth level) → RL (roof level / walls+lintel) →
+ * RC (roof casting / slab) → COMP (completion). Bill values per 400-SFT house.
+ */
 export const CONSTRUCTION_STAGES: {
   key: string;
   name: string;
+  shortName: string;
   mandatory: boolean;
   qc: boolean;
   milestone?: "FOUNDATION" | "PLINTH" | "ROOF" | "COMPLETION";
   weight: number;
+  billValue: number;
 }[] = [
-  { key: "APPROVED", name: "Beneficiary Approved", mandatory: true, qc: false, weight: 1 },
-  { key: "SITE_VERIFICATION", name: "Site Verification", mandatory: true, qc: false, weight: 2 },
-  { key: "SITE_HANDOVER", name: "Site Handover", mandatory: true, qc: false, weight: 2 },
-  { key: "LAYOUT", name: "Layout / Marking", mandatory: true, qc: false, weight: 2 },
-  { key: "EXCAVATION", name: "Excavation", mandatory: true, qc: false, weight: 4 },
-  { key: "FOUNDATION", name: "Foundation", mandatory: true, qc: true, milestone: "FOUNDATION", weight: 8 },
-  { key: "PLINTH", name: "Plinth", mandatory: true, qc: true, milestone: "PLINTH", weight: 7 },
-  { key: "RCC", name: "Column / RCC Work", mandatory: true, qc: true, weight: 8 },
-  { key: "WALLS", name: "Wall Construction", mandatory: true, qc: false, weight: 8 },
-  { key: "LINTEL", name: "Lintel", mandatory: true, qc: false, weight: 4 },
-  { key: "ROOF", name: "Roof / Slab", mandatory: true, qc: true, milestone: "ROOF", weight: 9 },
-  { key: "ELEC_ROUGH", name: "Electrical Rough-in", mandatory: true, qc: false, weight: 3 },
-  { key: "PLUMB_ROUGH", name: "Plumbing Rough-in", mandatory: true, qc: false, weight: 3 },
-  { key: "INT_PLASTER", name: "Internal Plastering", mandatory: true, qc: false, weight: 4 },
-  { key: "EXT_PLASTER", name: "External Plastering", mandatory: true, qc: false, weight: 4 },
-  { key: "FLOORING", name: "Flooring", mandatory: true, qc: false, weight: 4 },
-  { key: "DOORS_WINDOWS", name: "Doors & Windows", mandatory: true, qc: false, weight: 4 },
-  { key: "ELEC_FINISH", name: "Electrical Finishing", mandatory: true, qc: false, weight: 2 },
-  { key: "PLUMB_FINISH", name: "Plumbing Finishing", mandatory: true, qc: false, weight: 2 },
-  { key: "PAINTING", name: "Painting", mandatory: true, qc: false, weight: 3 },
-  { key: "FINAL_FINISH", name: "Final Finishing", mandatory: true, qc: false, weight: 2 },
-  { key: "QUALITY_INSPECTION", name: "Quality Inspection", mandatory: true, qc: true, weight: 1 },
-  { key: "BENEFICIARY_INSPECTION", name: "Beneficiary Inspection", mandatory: true, qc: false, weight: 1 },
-  { key: "COMPLETION", name: "Completion", mandatory: true, qc: false, milestone: "COMPLETION", weight: 1 },
-  { key: "HANDOVER", name: "Handover", mandatory: true, qc: false, weight: 1 },
+  { key: "AUGER", name: "Auger Boring / Foundation", shortName: "Auger", mandatory: true, qc: false, weight: 15, billValue: 0 },
+  { key: "BL", name: "Basement Level (Plinth)", shortName: "BL", mandatory: true, qc: true, milestone: "FOUNDATION", weight: 25, billValue: 100000 },
+  { key: "RL", name: "Roof Level (Walls & Lintel)", shortName: "RL", mandatory: true, qc: false, weight: 25, billValue: 100000 },
+  { key: "RC", name: "Roof Casting (Slab)", shortName: "RC", mandatory: true, qc: true, milestone: "ROOF", weight: 25, billValue: 140000 },
+  { key: "COMP", name: "Completion", shortName: "COMP", mandatory: true, qc: false, milestone: "COMPLETION", weight: 10, billValue: 60000 },
 ];
+
+/** Stage code as it appears in the source workbook -> our stage key. */
+export const STAGE_ALIASES: Record<string, string> = {
+  AUGER: "AUGER",
+  BL: "BL",
+  LL: "BL", // "lower level" seen occasionally in dashboards = basement level
+  RL: "RL",
+  RC: "RC",
+  COMP: "COMP",
+  "F-COMP": "COMP",
+};
+
+/** Government approval chain a stage bill passes through before payment. */
+export const APPROVAL_CHAIN = [
+  { key: "PS", label: "Panchayat Secretary" },
+  { key: "AE", label: "Assistant Engineer" },
+  { key: "PD", label: "Project Director" },
+  { key: "Collector", label: "District Collector" },
+  { key: "EE", label: "Executive Engineer" },
+  { key: "CE", label: "Chief Engineer" },
+  { key: "MD", label: "Managing Director (TSHCL)" },
+] as const;
+
+export const PAYMENT_MODES = [
+  "ICICI Card",
+  "Golden Rock Card",
+  "Eesha Card",
+  "DBT / Own Account",
+  "Cash Collected",
+] as const;
+
+/** Payment-milestone enum -> the stage it actually represents in this workflow. */
+export const PAYMENT_MILESTONE_LABELS: Record<string, string> = {
+  FOUNDATION: "Basement Level (BL)",
+  PLINTH: "Roof Level (RL)",
+  ROOF: "Roof Casting (RC)",
+  COMPLETION: "Completion (COMP)",
+};
 
 export const BENEFICIARY_STATUS_LABELS: Record<string, string> = {
   APPLIED: "Applied",
