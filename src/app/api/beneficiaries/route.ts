@@ -17,7 +17,10 @@ export const GET = route(
         OR: [
           { name: { contains: q, mode: "insensitive" } },
           { beneficiaryCode: { contains: q, mode: "insensitive" } },
+          { astCode: { contains: q, mode: "insensitive" } },
           { applicationNo: { contains: q, mode: "insensitive" } },
+          { applicationId: { contains: q, mode: "insensitive" } },
+          { cardHolderName: { contains: q, mode: "insensitive" } },
           { mobile: { contains: q } },
         ],
       });
@@ -36,19 +39,45 @@ export const GET = route(
       prisma.beneficiary.findMany({
         where, orderBy: orderByClause, skip, take,
         select: {
-          id: true, beneficiaryCode: true, applicationNo: true, name: true,
-          guardianName: true, mobile: true, status: true, sanctionAmount: true,
-          financialYear: true, createdAt: true,
+          id: true, beneficiaryCode: true, applicationNo: true, applicationId: true,
+          astCode: true, name: true, guardianName: true, mobile: true, status: true,
+          sanctionAmount: true, financialYear: true, createdAt: true,
+          sft: true, mouStatus: true, cmsAccountStatus: true, cardHolderName: true,
           district: { select: { name: true } },
           mandal: { select: { name: true } },
           village: { select: { name: true } },
-          house: { select: { id: true, houseCode: true, progressPct: true, status: true } },
+          house: {
+            select: {
+              id: true, houseCode: true, progressPct: true, status: true,
+              currentStageName: true, actualCost: true, estimatedCost: true,
+            },
+          },
         },
       }),
       prisma.beneficiary.count({ where }),
     ]);
 
-    return paginated(rows, total, page, pageSize);
+    // Latest online status per beneficiary (from the most-advanced stage row).
+    const houseIds = rows.map((r) => r.house?.id).filter(Boolean) as string[];
+    const stages = houseIds.length
+      ? await prisma.houseStageProgress.findMany({
+          where: { houseId: { in: houseIds }, onlineStatus: { not: null } },
+          select: { houseId: true, sequence: true, onlineStatus: true },
+          orderBy: { sequence: "asc" },
+        })
+      : [];
+    const onlineByHouse = new Map<string, string>();
+    for (const s of stages) if (s.onlineStatus) onlineByHouse.set(s.houseId, s.onlineStatus);
+
+    return paginated(
+      rows.map((r) => ({
+        ...r,
+        onlineStatus: r.house?.id ? onlineByHouse.get(r.house.id) ?? null : null,
+      })),
+      total,
+      page,
+      pageSize,
+    );
   },
   { feature: "beneficiaries" },
 );

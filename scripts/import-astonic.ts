@@ -14,6 +14,7 @@
  * Users / logins are NOT touched.
  */
 import * as XLSX from "xlsx";
+import { existsSync } from "node:fs";
 import { createHash, randomBytes } from "node:crypto";
 import { PrismaClient, type Prisma } from "@prisma/client";
 import { CONSTRUCTION_STAGES, STAGE_ALIASES } from "../src/lib/constants";
@@ -22,6 +23,11 @@ const prisma = new PrismaClient();
 const DRY = process.argv.includes("--dry-run") || process.env.DRY_RUN === "1";
 const FILE = process.env.FILE || "data/astonic-report.xlsx";
 const SALT = process.env.JWT_ACCESS_SECRET || "salt";
+// Optional: a fresh "Inventory - Summary" CSV export that overrides the sheet
+// inside FILE (auto-detected if data/inventory-summary.csv exists).
+const INVENTORY_CSV =
+  process.env.INVENTORY_CSV ||
+  (existsSync("data/inventory-summary.csv") ? "data/inventory-summary.csv" : "");
 
 // ---------------------------------------------------------------------------
 // helpers
@@ -35,14 +41,35 @@ const last4 = (v: unknown) => {
   return d.length >= 4 ? d.slice(-4) : d || null;
 };
 
-/** Excel serial date -> JS Date (workbook uses the 1900 date system). */
+const MONTHS: Record<string, number> = {
+  jan: 0, feb: 1, mar: 2, apr: 3, may: 4, jun: 5,
+  jul: 6, aug: 7, sep: 8, oct: 9, nov: 10, dec: 11,
+};
+
+/** Excel serial OR "DD-Mon-YYYY" / "DD/MM/YYYY" text -> JS Date. */
 function xdate(v: unknown): Date | null {
   if (v == null || v === "") return null;
   if (v instanceof Date) return isNaN(v.getTime()) ? null : v;
+
+  if (typeof v === "string") {
+    const s = v.trim();
+    // 26-Nov-2025 / 26 Nov 2025 / 26-November-2025
+    let m = s.match(/^(\d{1,2})[-\s/]+([A-Za-z]{3,})[-\s/]+(\d{4})$/);
+    if (m) {
+      const mon = MONTHS[m[2].slice(0, 3).toLowerCase()];
+      if (mon != null) return new Date(Date.UTC(+m[3], mon, +m[1]));
+    }
+    // 26/11/2025 or 26-11-2025 (day-first)
+    m = s.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})$/);
+    if (m) return new Date(Date.UTC(+m[3], +m[2] - 1, +m[1]));
+    // 2025-11-26
+    m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+    if (m) return new Date(Date.UTC(+m[1], +m[2] - 1, +m[3]));
+  }
+
   const n = typeof v === "number" ? v : Number(v);
   if (!Number.isFinite(n) || n <= 0) return null;
-  // XLSX helper handles the 1900 leap-year bug
-  const p = XLSX.SSF.parse_date_code(n);
+  const p = XLSX.SSF.parse_date_code(n); // handles the 1900 leap-year bug
   if (!p) return null;
   const d = new Date(Date.UTC(p.y, p.m - 1, p.d, p.H || 0, p.M || 0, p.S || 0));
   return isNaN(d.getTime()) ? null : d;
@@ -242,7 +269,19 @@ type StageRow = {
 };
 
 function parseInventory(wb: XLSX.WorkBook) {
-  const rows = sheet(wb, "Inventory - Summary");
+  // Prefer a standalone Inventory-Summary CSV export when one is provided —
+  // its column layout matches the workbook sheet (header on row index 2).
+  let rows: unknown[][];
+  if (INVENTORY_CSV) {
+    const cwb = XLSX.readFile(INVENTORY_CSV);
+    rows = XLSX.utils.sheet_to_json(cwb.Sheets[cwb.SheetNames[0]], {
+      header: 1,
+      defval: "",
+    }) as unknown[][];
+    console.log(`  (Inventory-Summary from CSV: ${INVENTORY_CSV})`);
+  } else {
+    rows = sheet(wb, "Inventory - Summary");
+  }
   const H = rows[2] as string[];
   const c = (label: string) => H.findIndex((h) => String(h).trim() === label);
   const idx = {

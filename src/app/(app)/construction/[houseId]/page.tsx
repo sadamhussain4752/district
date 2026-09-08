@@ -25,15 +25,118 @@ import { Label } from "@/components/ui/label";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
+import { ChevronDown } from "lucide-react";
 import { formatINR, formatDate, formatDateTime, pct } from "@/lib/utils";
-import { PAYMENT_MILESTONE_LABELS } from "@/lib/constants";
-import { STAGE_STATUS_LABELS } from "@/lib/constants";
+import {
+  PAYMENT_MILESTONE_LABELS,
+  STAGE_STATUS_LABELS,
+  APPROVAL_CHAIN,
+} from "@/lib/constants";
 
 function F({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div className="space-y-0.5">
       <dt className="text-xs text-muted-foreground">{label}</dt>
       <dd className="text-sm font-medium">{value ?? "—"}</dd>
+    </div>
+  );
+}
+
+/** One construction stage — summary row that expands to the full Inventory-Summary detail. */
+function StageCard({ s, onEdit }: { s: any; onEdit: () => void }) {
+  const [open, setOpen] = React.useState(false);
+  const chainDates: Record<string, string | null> = {
+    PS: s.psDate, AE: s.aeDate, PD: s.pdDate, Collector: s.collectorDate,
+    EE: s.eeDate, CE: s.ceDate, MD: s.mdDate,
+  };
+  const hasDetail =
+    s.labourContractorName || s.supervisorName || s.onlineStatus ||
+    s.paymentMode || s.utrNumber || Object.values(chainDates).some(Boolean);
+
+  return (
+    <div className="rounded-lg border bg-card">
+      <button
+        onClick={() => hasDetail && setOpen((o) => !o)}
+        className="flex w-full items-center gap-3 px-3 py-2.5 text-left"
+      >
+        <span className="w-5 shrink-0 text-center text-xs tabular-nums text-muted-foreground">
+          {s.sequence}
+        </span>
+        <span className="w-40 shrink-0 font-medium">{s.stageName}</span>
+        <StatusBadge status={s.status} />
+        <div className="flex flex-1 items-center gap-2">
+          <Progress value={s.progressPct} className="h-1.5 max-w-[120px]" />
+          <span className="text-xs tabular-nums text-muted-foreground">
+            {s.progressPct}%
+          </span>
+        </div>
+        <span className="hidden text-xs tabular-nums text-muted-foreground sm:block">
+          {formatINR(s.receivedAmount || s.stageCost)} / {formatINR(s.billValue)}
+        </span>
+        {s.onlineStatus && (
+          <Badge variant="secondary" className="hidden max-w-[180px] truncate lg:inline-flex">
+            {s.onlineStatus}
+          </Badge>
+        )}
+        <span
+          role="button"
+          tabIndex={0}
+          onClick={(e) => {
+            e.stopPropagation();
+            onEdit();
+          }}
+          className="ml-1 rounded-md border px-2 py-1 text-xs hover:bg-accent"
+        >
+          Update
+        </span>
+        {hasDetail && (
+          <ChevronDown
+            className={`h-4 w-4 shrink-0 text-muted-foreground transition-transform ${open ? "rotate-180" : ""}`}
+          />
+        )}
+      </button>
+
+      {open && (
+        <div className="border-t px-3 py-3">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <F label="Labour Contractor" value={s.labourContractorName} />
+            <F label="Supervisor" value={s.supervisorName} />
+            <F label="Online Status" value={s.onlineStatus} />
+            <F label="Off-line Stage" value={s.offlineStage} />
+            <F label="Bill Value" value={formatINR(s.billValue)} />
+            <F label="Received" value={formatINR(s.receivedAmount)} />
+            <F label="Balance" value={formatINR(s.balanceAmount)} />
+            <F label="Captured On" value={formatDate(s.capturedOn)} />
+            <F label="Payment Mode" value={s.paymentMode} />
+            <F label="Payment Date" value={formatDate(s.paymentDate)} />
+            <F label="Payment Bank" value={s.paymentBankName} />
+            <F label="UTR / Cheque No" value={s.utrNumber} />
+          </div>
+
+          <div className="mt-4">
+            <div className="mb-1.5 text-xs font-medium text-muted-foreground">
+              Approval chain
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {APPROVAL_CHAIN.map((step) => {
+                const dt = chainDates[step.key];
+                return (
+                  <div
+                    key={step.key}
+                    className={`rounded-md border px-2 py-1 text-xs ${
+                      dt ? "border-success/40 bg-success/10" : "bg-muted/40 text-muted-foreground"
+                    }`}
+                    title={step.label}
+                  >
+                    <span className="font-semibold">{step.key}</span>
+                    {dt ? ` · ${formatDate(dt)}` : " · pending"}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -100,9 +203,29 @@ export default function HouseDetailPage() {
           <F label="Beneficiary" value={`${h.beneficiary?.name} (${h.beneficiary?.beneficiaryCode})`} />
           <F label="District / Mandal / Village" value={`${h.beneficiary?.district?.name} / ${h.beneficiary?.mandal?.name} / ${h.beneficiary?.village?.name}`} />
           <F label="Contractor" value={h.contractor?.companyName} />
-          <F label="Project Manager" value={h.projectManager?.name} />
-          <F label="Engineer" value={h.engineer?.name} />
-          <F label="Supervisor" value={h.supervisor?.name} />
+          <F
+            label="Labour Contractor"
+            value={
+              h.stageProgress?.map((s: any) => s.labourContractorName).find(Boolean) ??
+              null
+            }
+          />
+          <F
+            label="Supervisor"
+            value={
+              h.supervisor?.name ??
+              h.stageProgress?.map((s: any) => s.supervisorName).find(Boolean) ??
+              null
+            }
+          />
+          <F
+            label="Latest Stage / Status"
+            value={
+              h.stageProgress
+                ?.filter((s: any) => s.onlineStatus)
+                .slice(-1)[0]?.onlineStatus ?? h.currentStageName
+            }
+          />
           <F label="Status" value={<StatusBadge status={h.status} />} />
           <F label="Schedule Health" value={<StatusBadge status={h.scheduleHealth} />} />
           <div className="lg:col-span-2">
@@ -139,49 +262,11 @@ export default function HouseDetailPage() {
         </TabsList>
 
         <TabsContent value="stages">
-          <Card>
-            <CardContent className="pt-5">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>#</TableHead>
-                    <TableHead>Stage</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="w-40">Progress</TableHead>
-                    <TableHead>Actual Start</TableHead>
-                    <TableHead className="text-right">Stage Cost</TableHead>
-                    <TableHead></TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {h.stageProgress.map((s: any) => (
-                    <TableRow key={s.id}>
-                      <TableCell className="tabular-nums text-muted-foreground">{s.sequence}</TableCell>
-                      <TableCell className="font-medium">{s.stageName}</TableCell>
-                      <TableCell><StatusBadge status={s.status} /></TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <Progress value={s.progressPct} className="h-1.5" />
-                          <span className="w-9 text-right text-xs tabular-nums">{s.progressPct}%</span>
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-xs">{formatDate(s.actualStart)}</TableCell>
-                      <TableCell className="text-right tabular-nums">{formatINR(s.stageCost)}</TableCell>
-                      <TableCell className="text-right">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => setEditStage(s)}
-                        >
-                          Update
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
+          <div className="space-y-2">
+            {h.stageProgress.map((s: any) => (
+              <StageCard key={s.id} s={s} onEdit={() => setEditStage(s)} />
+            ))}
+          </div>
         </TabsContent>
 
         <TabsContent value="dpr">

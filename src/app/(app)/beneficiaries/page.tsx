@@ -4,6 +4,7 @@ import { Plus } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
 import { DataTable, type Column } from "@/components/data-table";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { StatusBadge } from "@/components/status-badge";
 import { Progress } from "@/components/ui/misc";
 import { useFilters } from "@/components/app-shell/filters";
@@ -13,44 +14,57 @@ type Row = {
   id: string;
   beneficiaryCode: string;
   applicationNo: string;
+  applicationId: string | null;
+  astCode: string | null;
   name: string;
-  guardianName: string | null;
   mobile: string | null;
   status: string;
-  sanctionAmount: number;
+  sft: string | null;
+  mouStatus: string | null;
+  cmsAccountStatus: string | null;
+  cardHolderName: string | null;
+  onlineStatus: string | null;
   district: { name: string } | null;
   mandal: { name: string } | null;
   village: { name: string } | null;
-  house: { id: string; houseCode: string; progressPct: number; status: string } | null;
+  house: {
+    id: string;
+    houseCode: string;
+    progressPct: number;
+    status: string;
+    currentStageName: string | null;
+    actualCost: number;
+    estimatedCost: number;
+  } | null;
 };
+
+function onlineVariant(s: string | null) {
+  if (!s) return "muted" as const;
+  if (/done/i.test(s)) return "success" as const;
+  if (/pending|not done/i.test(s)) return "warning" as const;
+  return "default" as const;
+}
 
 const columns: Column<Row>[] = [
   {
-    key: "beneficiaryCode",
+    key: "name",
     header: "Beneficiary",
     sortable: true,
     render: (r) => (
       <div>
         <div className="font-medium">{r.name}</div>
         <div className="text-xs text-muted-foreground">
-          {r.beneficiaryCode} · {r.applicationNo}
+          {r.astCode ?? r.beneficiaryCode} · {r.applicationId ?? r.applicationNo}
         </div>
       </div>
     ),
   },
   {
-    key: "guardianName",
-    header: "Guardian",
-    render: (r) => r.guardianName || "—",
-    defaultHidden: true,
-  },
-  { key: "mobile", header: "Mobile", render: (r) => r.mobile || "—" },
-  {
     key: "location",
     header: "Location",
     render: (r) => (
       <div className="text-sm">
-        {r.village?.name}
+        {r.village?.name || "—"}
         <div className="text-xs text-muted-foreground">
           {r.mandal?.name}, {r.district?.name}
         </div>
@@ -58,17 +72,25 @@ const columns: Column<Row>[] = [
     ),
   },
   {
-    key: "sanctionAmount",
-    header: "Sanction",
-    sortable: true,
-    className: "text-right",
-    render: (r) => (
-      <span className="tabular-nums">{formatINR(r.sanctionAmount)}</span>
-    ),
+    key: "cardHolderName",
+    header: "Card Holder",
+    render: (r) => r.cardHolderName || "—",
+    defaultHidden: true,
+  },
+  { key: "mobile", header: "Mobile", render: (r) => r.mobile || "—", defaultHidden: true },
+  {
+    key: "stage",
+    header: "Current Stage",
+    render: (r) =>
+      r.house ? (
+        <span className="text-sm">{r.house.currentStageName || "—"}</span>
+      ) : (
+        <span className="text-xs text-muted-foreground">No house</span>
+      ),
   },
   {
     key: "house",
-    header: "House Progress",
+    header: "Progress",
     render: (r) =>
       r.house ? (
         <div className="flex w-32 items-center gap-2">
@@ -78,8 +100,50 @@ const columns: Column<Row>[] = [
           </span>
         </div>
       ) : (
-        <span className="text-xs text-muted-foreground">No house</span>
+        "—"
       ),
+  },
+  {
+    key: "received",
+    header: "Received / Bill",
+    className: "text-right",
+    render: (r) =>
+      r.house ? (
+        <span className="text-xs tabular-nums">
+          {formatINR(r.house.actualCost)}
+          <span className="text-muted-foreground">
+            {" "}
+            / {formatINR(r.house.estimatedCost)}
+          </span>
+        </span>
+      ) : (
+        "—"
+      ),
+  },
+  {
+    key: "onlineStatus",
+    header: "Approval",
+    render: (r) =>
+      r.onlineStatus ? (
+        <Badge variant={onlineVariant(r.onlineStatus)} className="max-w-[170px] truncate">
+          {r.onlineStatus}
+        </Badge>
+      ) : (
+        <span className="text-xs text-muted-foreground">—</span>
+      ),
+  },
+  {
+    key: "cmsAccountStatus",
+    header: "Card",
+    render: (r) =>
+      r.cmsAccountStatus ? <StatusBadge status={r.cmsAccountStatus} /> : "—",
+    defaultHidden: true,
+  },
+  {
+    key: "mouStatus",
+    header: "MOU",
+    render: (r) => r.mouStatus || "—",
+    defaultHidden: true,
   },
   {
     key: "status",
@@ -96,7 +160,7 @@ export default function BeneficiariesPage() {
     <div>
       <PageHeader
         title="Beneficiaries"
-        description="Housing beneficiary database — applications, verification and house tracking"
+        description="Indiramma Indlu beneficiary files — stage progress, approvals and payments"
         breadcrumbs={[{ label: "Home", href: "/dashboard" }, { label: "Beneficiaries" }]}
         actions={
           <Button asChild size="sm">
@@ -112,7 +176,7 @@ export default function BeneficiariesPage() {
         columns={columns}
         extraParams={{ districtId: districtId ?? "", fy }}
         rowHref={(r) => `/beneficiaries/${r.id}`}
-        searchPlaceholder="Search name, code, application no, mobile…"
+        searchPlaceholder="Search name, AST code, application ID, mobile…"
         exportName="beneficiaries"
       />
     </div>
