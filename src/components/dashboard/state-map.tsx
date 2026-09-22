@@ -173,8 +173,7 @@ export function StateMap({
           <div className="mb-2 text-base font-semibold">{hover.name}</div>
           {hover.stat ? (
             <dl className="space-y-1">
-              <Row k="Applicants" v={formatNumber(hover.stat.applications)} />
-              <Row k="Beneficiaries" v={formatNumber(hover.stat.approved)} />
+              <Row k="Beneficiaries" v={formatNumber(hover.stat.applications)} />
               <Row k="Started" v={formatNumber(hover.stat.started)} />
               <Row k="Completed" v={formatNumber(hover.stat.completed)} />
               <Row k="Not Started" v={formatNumber(hover.stat.notStarted)} />

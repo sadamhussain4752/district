@@ -25,10 +25,36 @@ export const GET = route(
         ],
       });
     }
-    for (const key of ["districtId", "mandalId", "villageId", "projectId", "status"] as const) {
+    for (const key of ["districtId", "mandalId", "villageId", "projectId"] as const) {
       const v = sp.get(key);
       if (v) and.push({ [key]: v });
     }
+    // Status filter is driven by the house's construction status (the beneficiary
+    // record itself is APPROVED for the whole Astonic roster).
+    const status = sp.get("status");
+    if (status === "started") {
+      and.push({
+        house: {
+          status: { in: ["IN_PROGRESS", "UNDER_CONSTRUCTION", "DELAYED", "COMPLETED", "HANDED_OVER"] },
+        },
+      });
+    } else if (status === "not_started") {
+      and.push({ OR: [{ house: { status: "NOT_STARTED" } }, { house: { is: null } }] });
+    } else if (status === "under_construction") {
+      and.push({ house: { status: "UNDER_CONSTRUCTION" } });
+    } else if (status === "completed") {
+      and.push({ house: { status: { in: ["COMPLETED", "HANDED_OVER"] } } });
+    } else if (status === "delayed") {
+      and.push({ house: { status: "DELAYED" } });
+    } else if (status === "cancelled") {
+      and.push({ status: { in: ["CANCELLED", "REJECTED"] } });
+    } else if (status === "on_hold") {
+      and.push({ OR: [{ status: "ON_HOLD" }, { house: { status: "ON_HOLD" } }] });
+    } else if (status) {
+      and.push({ status });
+    }
+    const stage = sp.get("stage");
+    if (stage) and.push({ house: { currentStageKey: stage } });
     if (sp.get("fy")) and.push({ financialYear: sp.get("fy") });
 
     const where = { AND: and };

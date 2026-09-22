@@ -30,8 +30,8 @@ export const CURRENT_FY = "2025-26";
 
 /**
  * Construction stage master — the real Indiramma Indlu / Astonic workflow.
- * Auger → BL (basement/plinth level) → RL (roof level / walls+lintel) →
- * RC (roof casting / slab) → COMP (completion). Bill values per 400-SFT house.
+ * Auger Filing → BL (basement/plinth level) → RL (roof level / walls+lintel) →
+ * RC (roof casting / slab) → Completion. Bill values total ₹5,00,000 per house.
  */
 export const CONSTRUCTION_STAGES: {
   key: string;
@@ -43,12 +43,18 @@ export const CONSTRUCTION_STAGES: {
   weight: number;
   billValue: number;
 }[] = [
-  { key: "AUGER", name: "Auger Boring / Foundation", shortName: "Auger", mandatory: true, qc: false, weight: 15, billValue: 0 },
-  { key: "BL", name: "Basement Level (Plinth)", shortName: "BL", mandatory: true, qc: true, milestone: "FOUNDATION", weight: 25, billValue: 100000 },
-  { key: "RL", name: "Roof Level (Walls & Lintel)", shortName: "RL", mandatory: true, qc: false, weight: 25, billValue: 100000 },
-  { key: "RC", name: "Roof Casting (Slab)", shortName: "RC", mandatory: true, qc: true, milestone: "ROOF", weight: 25, billValue: 140000 },
-  { key: "COMP", name: "Completion", shortName: "COMP", mandatory: true, qc: false, milestone: "COMPLETION", weight: 10, billValue: 60000 },
+  { key: "AUGER", name: "Auger Filing", shortName: "Auger Filing", mandatory: true, qc: false, weight: 10, billValue: 0 },
+  { key: "BL", name: "Basement Level (BL)", shortName: "BL", mandatory: true, qc: true, milestone: "FOUNDATION", weight: 22, billValue: 100000 },
+  { key: "RL", name: "Roof Level (RL)", shortName: "RL", mandatory: true, qc: false, weight: 22, billValue: 100000 },
+  { key: "RC", name: "Roof Casting (RC)", shortName: "RC", mandatory: true, qc: true, milestone: "ROOF", weight: 26, billValue: 140000 },
+  { key: "COMP", name: "Completion", shortName: "COMP", mandatory: true, qc: false, milestone: "COMPLETION", weight: 20, billValue: 160000 },
 ];
+
+/** Full contract value of one Indiramma Indlu house (sum of stage bill values). */
+export const HOUSE_CONTRACT_VALUE = CONSTRUCTION_STAGES.reduce(
+  (a, s) => a + s.billValue,
+  0,
+); // ₹5,00,000
 
 /** Stage code as it appears in the source workbook -> our stage key. */
 export const STAGE_ALIASES: Record<string, string> = {

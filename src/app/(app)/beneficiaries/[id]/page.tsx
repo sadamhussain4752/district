@@ -20,8 +20,14 @@ import {
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { formatINR, formatDate, pct } from "@/lib/utils";
-import { BENEFICIARY_STATUS_LABELS, PAYMENT_MILESTONE_LABELS } from "@/lib/constants";
+import {
+  BENEFICIARY_STATUS_LABELS,
+  PAYMENT_MILESTONE_LABELS,
+  PAYMENT_MODES,
+} from "@/lib/constants";
 
 const STATUS_FLOW = Object.keys(BENEFICIARY_STATUS_LABELS);
 
@@ -213,12 +219,17 @@ export default function BeneficiaryDetailPage() {
               <CardContent className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
                 <Field label="House ID" value={house.houseCode} />
                 <Field label="Status" value={<StatusBadge status={house.status} />} />
-                <Field label="Schedule Health" value={<StatusBadge status={house.scheduleHealth} />} />
-                <Field label="Health Score" value={`${house.healthScore}/100`} />
+                <Field label="Current Stage" value={house.currentStageName} />
+                <Field label="Completion" value={pct(house.progressPct)} />
                 <Field label="Start Date" value={formatDate(house.startDate)} />
-                <Field label="Planned Completion" value={formatDate(house.plannedCompletion)} />
-                <Field label="Estimated Cost" value={formatINR(house.estimatedCost)} />
-                <Field label="Actual Cost" value={formatINR(house.actualCost)} />
+                <Field label="Contract Value" value={formatINR(house.estimatedCost)} />
+                <Field label="Received to date" value={formatINR(house.actualCost)} />
+                <Field
+                  label="Balance"
+                  value={formatINR(
+                    Math.max(0, house.estimatedCost - house.actualCost),
+                  )}
+                />
                 {house.delayReason && (
                   <Field label="Delay Reason" value={house.delayReason} />
                 )}
@@ -230,6 +241,40 @@ export default function BeneficiaryDetailPage() {
               description="A house construction file is created automatically once the beneficiary reaches Approved status."
             />
           )}
+
+          {house?.stageProgress?.length ? (
+            <Card className="mt-4">
+              <CardHeader>
+                <CardTitle>Labour &amp; Site Team</CardTitle>
+              </CardHeader>
+              <CardContent className="pt-0">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Stage</TableHead>
+                      <TableHead>Labour Contractor (Vendor)</TableHead>
+                      <TableHead>Supervisor</TableHead>
+                      <TableHead>Online Status</TableHead>
+                      <TableHead className="text-right">Bill / Received</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {house.stageProgress.map((s: any) => (
+                      <TableRow key={s.id}>
+                        <TableCell className="font-medium">{s.stageName}</TableCell>
+                        <TableCell>{s.labourContractorName || "—"}</TableCell>
+                        <TableCell>{s.supervisorName || "—"}</TableCell>
+                        <TableCell className="text-xs">{s.onlineStatus || "—"}</TableCell>
+                        <TableCell className="text-right text-xs tabular-nums">
+                          {formatINR(s.billValue)} / {formatINR(s.receivedAmount)}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          ) : null}
         </TabsContent>
 
         <TabsContent value="progress">
@@ -278,40 +323,7 @@ export default function BeneficiaryDetailPage() {
 
         <TabsContent value="payments">
           {b.payments?.length ? (
-            <Card>
-              <CardContent className="pt-5">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Milestone</TableHead>
-                      <TableHead className="text-right">Eligible</TableHead>
-                      <TableHead className="text-right">Released</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Txn Ref</TableHead>
-                      <TableHead>Paid On</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {b.payments.map((p: any) => (
-                      <TableRow key={p.id}>
-                        <TableCell className="font-medium">
-                          {PAYMENT_MILESTONE_LABELS[p.milestone] ?? p.milestone}
-                        </TableCell>
-                        <TableCell className="text-right tabular-nums">
-                          {formatINR(p.eligibleAmount)}
-                        </TableCell>
-                        <TableCell className="text-right tabular-nums">
-                          {formatINR(p.releasedAmount)}
-                        </TableCell>
-                        <TableCell><StatusBadge status={p.status} /></TableCell>
-                        <TableCell className="text-xs">{p.txnRef || "—"}</TableCell>
-                        <TableCell className="text-xs">{formatDate(p.paymentDate)}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </CardContent>
-            </Card>
+            <PaymentsPanel beneficiaryId={id} payments={b.payments} />
           ) : (
             <EmptyState title="No payment milestones" />
           )}
@@ -409,5 +421,201 @@ export default function BeneficiaryDetailPage() {
         </TabsContent>
       </Tabs>
     </div>
+  );
+}
+
+/* ---- Payments tab: record milestone releases ---- */
+function PaymentsPanel({
+  beneficiaryId,
+  payments,
+}: {
+  beneficiaryId: string;
+  payments: any[];
+}) {
+  const qc = useQueryClient();
+  const [openId, setOpenId] = React.useState<string | null>(null);
+  const [paidOn, setPaidOn] = React.useState(
+    new Date().toISOString().slice(0, 10),
+  );
+  const [txnRef, setTxnRef] = React.useState("");
+  const [mode, setMode] = React.useState<string>(PAYMENT_MODES[0]);
+
+  const mut = useMutation({
+    mutationFn: (payload: any) =>
+      fetch(`/api/beneficiaries/${beneficiaryId}/payments`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      }).then(async (r) => {
+        if (!r.ok) throw new Error((await r.json()).error || "Failed");
+        return r.json();
+      }),
+    onSuccess: (_d, vars) => {
+      toast.success(vars.reverse ? "Payment reversed" : "Payment released");
+      setOpenId(null);
+      setTxnRef("");
+      qc.invalidateQueries({ queryKey: ["beneficiary", beneficiaryId] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const totalEligible = payments.reduce(
+    (a, p) => a + (p.eligibleAmount || 0),
+    0,
+  );
+  const totalReleased = payments.reduce(
+    (a, p) => a + (p.releasedAmount || 0),
+    0,
+  );
+
+  return (
+    <Card>
+      <CardContent className="pt-5">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Milestone</TableHead>
+              <TableHead className="text-right">Eligible</TableHead>
+              <TableHead className="text-right">Release Amount</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead>Txn Ref</TableHead>
+              <TableHead>Paid / Released On</TableHead>
+              <TableHead className="text-right"></TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {payments.map((p: any) => {
+              const paid = p.status === "PAID" || p.releasedAmount > 0;
+              return (
+                <React.Fragment key={p.id}>
+                  <TableRow>
+                    <TableCell className="font-medium">
+                      {PAYMENT_MILESTONE_LABELS[p.milestone] ?? p.milestone}
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      {formatINR(p.eligibleAmount)}
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      {formatINR(paid ? p.releasedAmount : p.eligibleAmount)}
+                    </TableCell>
+                    <TableCell>
+                      <StatusBadge status={paid ? "PAID" : p.status} />
+                    </TableCell>
+                    <TableCell className="text-xs">{p.txnRef || "—"}</TableCell>
+                    <TableCell className="text-xs">
+                      {formatDate(p.paymentDate)}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      {paid ? (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="text-xs text-destructive"
+                          disabled={mut.isPending}
+                          onClick={() =>
+                            mut.mutate({ paymentId: p.id, paidOn, reverse: true })
+                          }
+                        >
+                          Reverse
+                        </Button>
+                      ) : (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() =>
+                            setOpenId(openId === p.id ? null : p.id)
+                          }
+                        >
+                          Record release
+                        </Button>
+                      )}
+                    </TableCell>
+                  </TableRow>
+
+                  {openId === p.id && (
+                    <TableRow>
+                      <TableCell colSpan={7} className="bg-muted/30">
+                        <div className="flex flex-wrap items-end gap-3 py-1">
+                          <div className="space-y-1">
+                            <Label className="text-xs">
+                              Paid / Released on
+                            </Label>
+                            <Input
+                              type="date"
+                              value={paidOn}
+                              onChange={(e) => setPaidOn(e.target.value)}
+                              className="h-8 w-40"
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-xs">Payment mode</Label>
+                            <Select value={mode} onValueChange={setMode}>
+                              <SelectTrigger className="h-8 w-44">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {PAYMENT_MODES.map((m) => (
+                                  <SelectItem key={m} value={m}>
+                                    {m}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-xs">Txn / UTR ref</Label>
+                            <Input
+                              value={txnRef}
+                              onChange={(e) => setTxnRef(e.target.value)}
+                              placeholder="e.g. PFMS/UTR no."
+                              className="h-8 w-52"
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-xs text-muted-foreground">
+                              Release amount
+                            </Label>
+                            <div className="flex h-8 items-center px-1 text-sm font-semibold tabular-nums">
+                              {formatINR(p.eligibleAmount)}
+                            </div>
+                          </div>
+                          <Button
+                            size="sm"
+                            variant="success"
+                            disabled={mut.isPending}
+                            onClick={() =>
+                              mut.mutate({
+                                paymentId: p.id,
+                                paidOn,
+                                txnRef,
+                                paymentMode: mode,
+                              })
+                            }
+                          >
+                            Confirm release
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </React.Fragment>
+              );
+            })}
+            <TableRow className="border-t-2 font-semibold">
+              <TableCell>Total</TableCell>
+              <TableCell className="text-right tabular-nums">
+                {formatINR(totalEligible)}
+              </TableCell>
+              <TableCell className="text-right tabular-nums text-success">
+                {formatINR(totalReleased)}
+              </TableCell>
+              <TableCell colSpan={4} className="text-xs font-normal text-muted-foreground">
+                Balance to release {formatINR(totalEligible - totalReleased)}
+              </TableCell>
+            </TableRow>
+          </TableBody>
+        </Table>
+      </CardContent>
+    </Card>
   );
 }

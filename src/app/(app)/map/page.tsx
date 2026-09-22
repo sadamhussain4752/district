@@ -85,8 +85,8 @@ export default function MapPage() {
                 Counts across all beneficiary files in this console.
               </p>
               <div className="mt-4 grid grid-cols-2 gap-4">
-                <Metric label="Total Applicants" value={formatNumber(totals.applicants)} />
                 <Metric label="Total Beneficiaries" value={formatNumber(totals.beneficiaries)} />
+                <Metric label="Districts covered" value={formatNumber((data ?? []).filter((d) => d.applications > 0).length)} />
               </div>
             </CardContent>
           </Card>
@@ -119,8 +119,8 @@ export default function MapPage() {
                 <>
                   <p className="mt-1 text-lg font-semibold">{selected.name}</p>
                   <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-3">
-                    <Metric label="Applicants" value={formatNumber(selected.applications)} />
-                    <Metric label="Linked Beneficiaries" value={formatNumber(selected.approved)} />
+                    <Metric label="Beneficiaries" value={formatNumber(selected.applications)} />
+                    <Metric label="Houses in Progress" value={formatNumber(selected.started)} />
                     <Metric label="Mandals (dir.)" value={formatNumber(selectedDir?.mandalCount ?? 0)} />
                     <Metric label="Villages (dir.)" value={formatNumber(selectedDir?.villageCount ?? 0)} />
                     <Metric label="Started" value={formatNumber(selected.started)} />

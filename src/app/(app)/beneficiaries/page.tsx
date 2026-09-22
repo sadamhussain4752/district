@@ -1,14 +1,19 @@
 "use client";
+import * as React from "react";
 import Link from "next/link";
 import { Plus } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
 import { DataTable, type Column } from "@/components/data-table";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
 import { StatusBadge } from "@/components/status-badge";
 import { Progress } from "@/components/ui/misc";
 import { useFilters } from "@/components/app-shell/filters";
 import { formatINR } from "@/lib/utils";
+import { CONSTRUCTION_STAGES } from "@/lib/constants";
 
 type Row = {
   id: string;
@@ -153,8 +158,21 @@ const columns: Column<Row>[] = [
   },
 ];
 
+const STATUS_FILTERS: { value: string; label: string }[] = [
+  { value: "all", label: "All statuses" },
+  { value: "not_started", label: "Not Started" },
+  { value: "started", label: "Started" },
+  { value: "under_construction", label: "Under Construction" },
+  { value: "completed", label: "Completed" },
+  { value: "delayed", label: "Delayed" },
+  { value: "cancelled", label: "Cancelled" },
+  { value: "on_hold", label: "On Hold" },
+];
+
 export default function BeneficiariesPage() {
   const { districtId, fy } = useFilters();
+  const [status, setStatus] = React.useState("all");
+  const [stage, setStage] = React.useState("all");
 
   return (
     <div>
@@ -172,12 +190,46 @@ export default function BeneficiariesPage() {
       />
       <DataTable<Row>
         endpoint="/api/beneficiaries"
-        queryKey={["beneficiaries", districtId, fy]}
+        queryKey={["beneficiaries", districtId, fy, status, stage]}
         columns={columns}
-        extraParams={{ districtId: districtId ?? "", fy }}
+        extraParams={{
+          districtId: districtId ?? "",
+          fy,
+          status: status === "all" ? "" : status,
+          stage: stage === "all" ? "" : stage,
+        }}
         rowHref={(r) => `/beneficiaries/${r.id}`}
         searchPlaceholder="Search name, AST code, application ID, mobile…"
         exportName="beneficiaries"
+        toolbar={
+          <>
+            <Select value={status} onValueChange={setStatus}>
+              <SelectTrigger className="h-9 w-44">
+                <SelectValue placeholder="Status" />
+              </SelectTrigger>
+              <SelectContent>
+                {STATUS_FILTERS.map((s) => (
+                  <SelectItem key={s.value} value={s.value}>
+                    {s.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={stage} onValueChange={setStage}>
+              <SelectTrigger className="h-9 w-40">
+                <SelectValue placeholder="Stage" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All stages</SelectItem>
+                {CONSTRUCTION_STAGES.map((s) => (
+                  <SelectItem key={s.key} value={s.key}>
+                    {s.shortName}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </>
+        }
       />
     </div>
   );

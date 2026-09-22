@@ -17,7 +17,7 @@ import * as XLSX from "xlsx";
 import { existsSync } from "node:fs";
 import { createHash, randomBytes } from "node:crypto";
 import { PrismaClient, type Prisma } from "@prisma/client";
-import { CONSTRUCTION_STAGES, STAGE_ALIASES } from "../src/lib/constants";
+import { CONSTRUCTION_STAGES, STAGE_ALIASES, HOUSE_CONTRACT_VALUE } from "../src/lib/constants";
 
 const prisma = new PrismaClient();
 const DRY = process.argv.includes("--dry-run") || process.env.DRY_RUN === "1";
@@ -694,7 +694,7 @@ async function loadIntoDb(data: {
       stateId, districtId: dId, mandalId: mId, villageId: vId,
       scheme: "Indiramma Indlu",
       financialYear: "2025-26",
-      sanctionAmount: b.totalBilled || 400000,
+      sanctionAmount: b.totalBilled || HOUSE_CONTRACT_VALUE,
       houseType: b.sft || "400-SFT",
       status: "APPROVED",
       contractorId: astonicId,
@@ -711,7 +711,9 @@ async function loadIntoDb(data: {
       const billed = b.stageBilled[cs.key] ?? 0;
       const received = sr?.received ?? (billed && b.balance === 0 ? billed : 0);
       const online = sr?.onlineStatus ?? "";
-      const isDone = received > 0 || DONE_ONLINE.test(online) || billed > 0;
+      // Auger Filing is the baseline first step — treated as complete for every house.
+      const isDone =
+        cs.key === "AUGER" || received > 0 || DONE_ONLINE.test(online) || billed > 0;
       const w = STAGE_WEIGHT.get(cs.key) ?? 0;
       if (isDone) weightDone += w;
       else if (sr) weightDone += w * 0.4;
@@ -772,13 +774,25 @@ async function loadIntoDb(data: {
     const houseStatus: Prisma.HouseCreateManyInput["status"] = compDone
       ? "COMPLETED"
       : progressPct <= 0 ? "NOT_STARTED" : progressPct >= 60 ? "UNDER_CONSTRUCTION" : "IN_PROGRESS";
+    const seqKeys = CONSTRUCTION_STAGES.map((cs) => cs.key);
     const doneKeys = CONSTRUCTION_STAGES.filter((cs) => {
       const sr = byStage.get(cs.key);
       const billed = b.stageBilled[cs.key] ?? 0;
       return (sr && (sr.received > 0 || DONE_ONLINE.test(sr.onlineStatus))) || billed > 0;
     }).map((cs) => cs.key);
-    const inProg = CONSTRUCTION_STAGES.find((cs) => byStage.has(cs.key) && !doneKeys.includes(cs.key))?.key;
-    const currentKey = inProg ?? doneKeys[doneKeys.length - 1] ?? "AUGER";
+    // current stage = successor of the furthest-done stage, unless a later stage
+    // is already in progress
+    const lastDoneIdx = Math.max(-1, ...doneKeys.map((k) => seqKeys.indexOf(k)));
+    const laterInProg = CONSTRUCTION_STAGES.find(
+      (cs, i) => i > lastDoneIdx && byStage.has(cs.key) && !doneKeys.includes(cs.key),
+    )?.key;
+    const currentKey =
+      laterInProg ??
+      (lastDoneIdx >= 0 && lastDoneIdx < seqKeys.length - 1
+        ? seqKeys[lastDoneIdx + 1]
+        : lastDoneIdx === seqKeys.length - 1
+          ? seqKeys[lastDoneIdx]
+          : "AUGER");
 
     houseRows.push({
       id: houseId,
@@ -789,7 +803,7 @@ async function loadIntoDb(data: {
       supervisorId: anySup ? supMap.get(anySup.toLowerCase()) ?? null : null,
       startDate: firstDate,
       actualCompletion: compDone ? byStage.get("COMP")?.date ?? null : null,
-      estimatedCost: b.totalBilled || 400000,
+      estimatedCost: b.totalBilled || HOUSE_CONTRACT_VALUE,
       actualCost,
       currentStageKey: currentKey,
       currentStageName: STAGE_NAME.get(currentKey) ?? currentKey,
@@ -866,7 +880,7 @@ async function loadIntoDb(data: {
       name: `Astonic Indiramma Indlu — ${dName}`,
       stateId, districtId: dId, financialYear: "2025-26",
       plannedHouses: apps.length,
-      approvedBudget: apps.reduce((a, b) => a + (b.totalBilled || 400000), 0),
+      approvedBudget: apps.reduce((a, b) => a + (b.totalBilled || HOUSE_CONTRACT_VALUE), 0),
       contractorId: astonicId, status: "ACTIVE" as const,
       progressPct: Math.round((agg._avg.progressPct ?? 0) * 10) / 10,
       totalExpenditure: received,

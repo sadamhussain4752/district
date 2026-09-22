@@ -82,19 +82,15 @@ export default function DashboardPage() {
       />
 
       {/* Primary KPIs */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-        <KpiCard label="Total Applications" value={formatNumber(k?.totalApplications)} loading={loading} tone="navy" />
-        <KpiCard label="Beneficiaries" value={formatNumber(k?.totalBeneficiaries)} loading={loading} href="/beneficiaries" />
-        <KpiCard label="Verified" value={formatNumber(k?.verifiedBeneficiaries)} loading={loading} tone="success" />
-        <KpiCard label="Approved Houses" value={formatNumber(k?.approvedHouses)} loading={loading} />
-        <KpiCard label="Construction Started" value={formatNumber(k?.constructionStarted)} loading={loading} href="/construction" />
-        <KpiCard label="Not Started" value={formatNumber(k?.notStarted)} loading={loading} tone="warning" />
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+        <KpiCard label="Beneficiaries" value={formatNumber(k?.totalBeneficiaries)} loading={loading} tone="navy" href="/beneficiaries" />
+        <KpiCard label="Not Started" value={formatNumber(k?.notStarted)} loading={loading} tone="warning" href="/construction?status=NOT_STARTED" />
+        <KpiCard label="Started" value={formatNumber(k?.constructionStarted)} loading={loading} href="/construction" />
         <KpiCard label="Under Construction" value={formatNumber(k?.underConstruction)} loading={loading} href="/construction" />
         <KpiCard label="Completed" value={formatNumber(k?.completedHouses)} loading={loading} tone="success" />
         <KpiCard label="Delayed" value={formatNumber(k?.delayedHouses)} loading={loading} tone="destructive" href="/construction?health=delayed" />
+        <KpiCard label="Cancelled" value={formatNumber(k?.cancelledCount)} loading={loading} tone="destructive" />
         <KpiCard label="Overall Completion" value={pct(k?.overallCompletionPct)} loading={loading} tone="navy" />
-        <KpiCard label="Inventory Value" value={formatINRCompact(k?.inventoryValue)} loading={loading} href="/inventory" />
-        <KpiCard label="Low Stock Items" value={formatNumber(k?.lowStockItems)} loading={loading} tone={k && k.lowStockItems > 0 ? "warning" : "default"} href="/inventory" />
       </div>
 
       {/* Financial KPIs */}

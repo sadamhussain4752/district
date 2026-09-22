@@ -27,6 +27,8 @@ export type Column<T> = {
   className?: string;
   render: (row: T) => React.ReactNode;
   defaultHidden?: boolean;
+  /** false = leave out of CSV export (e.g. row action buttons). */
+  exportable?: boolean;
 };
 
 export function DataTable<T extends { id: string }>({
@@ -38,6 +40,8 @@ export function DataTable<T extends { id: string }>({
   searchPlaceholder = "Search…",
   exportName = "export",
   toolbar,
+  defaultSort = "createdAt",
+  defaultDir = "desc",
 }: {
   endpoint: string;
   queryKey: unknown[];
@@ -47,14 +51,17 @@ export function DataTable<T extends { id: string }>({
   searchPlaceholder?: string;
   exportName?: string;
   toolbar?: React.ReactNode;
+  /** Initial sort column / direction (e.g. "date" + "desc" = latest first). */
+  defaultSort?: string;
+  defaultDir?: "asc" | "desc";
 }) {
   const router = useRouter();
   const [page, setPage] = React.useState(1);
   const [pageSize, setPageSize] = React.useState(20);
   const [q, setQ] = React.useState("");
   const [debouncedQ, setDebouncedQ] = React.useState("");
-  const [sort, setSort] = React.useState<string>("createdAt");
-  const [dir, setDir] = React.useState<"asc" | "desc">("desc");
+  const [sort, setSort] = React.useState<string>(defaultSort);
+  const [dir, setDir] = React.useState<"asc" | "desc">(defaultDir);
   const [hidden, setHidden] = React.useState<Set<string>>(
     () => new Set(columns.filter((c) => c.defaultHidden).map((c) => c.key)),
   );
@@ -102,10 +109,11 @@ export function DataTable<T extends { id: string }>({
 
   const exportCsv = () => {
     const rows = data?.data ?? [];
-    const header = visibleColumns.map((c) => c.header).join(",");
+    const exportColumns = visibleColumns.filter((c) => c.exportable !== false);
+    const header = exportColumns.map((c) => c.header).join(",");
     const body = rows
       .map((r) =>
-        visibleColumns
+        exportColumns
           .map((c) => {
             const el = c.render(r);
             const text =

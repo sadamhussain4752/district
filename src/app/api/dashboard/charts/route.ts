@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { route } from "@/lib/api";
 import { scopeFilter } from "@/lib/rbac";
-import { BENEFICIARY_STATUS_LABELS, HOUSE_STATUS_LABELS, EXPENSE_CATEGORIES } from "@/lib/constants";
+import { BENEFICIARY_STATUS_LABELS, HOUSE_STATUS_LABELS } from "@/lib/constants";
 import { healthBand } from "@/lib/progress";
 
 export const GET = route(
@@ -83,10 +83,14 @@ export const GET = route(
         avgDailyProgress: v.dprN ? Math.round((v.dprPct / v.dprN) * 10) / 10 : 0,
       }));
 
-    const expenseCategories = EXPENSE_CATEGORIES.map((c) => ({
-      name: c,
-      value: expenses.find((e) => e.category === c)?._sum.amount ?? 0,
-    })).filter((e) => e.value > 0);
+    // Categories come from the imported ledger, so rank them and fold the tail into "Others".
+    const rankedExpenses = expenses
+      .map((e) => ({ name: e.category, value: e._sum.amount ?? 0 }))
+      .filter((e) => e.value > 0)
+      .sort((a, b) => b.value - a.value);
+    const expenseCategories = rankedExpenses.length > 8
+      ? [...rankedExpenses.slice(0, 7), { name: "Others", value: rankedExpenses.slice(7).reduce((a, e) => a + e.value, 0) }]
+      : rankedExpenses;
 
     const materialAlerts = stock
       .filter((s) => s.quantity <= (s.material?.reorderLevel ?? 0))

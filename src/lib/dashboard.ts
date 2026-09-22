@@ -48,6 +48,7 @@ export async function getDashboardKpis(
     stock,
     materials,
     projectBudgetAgg,
+    cancelledCount,
   ] = await Promise.all([
     prisma.beneficiary.count({ where: bWhere }),
     prisma.beneficiary.count({ where: bWhere }),
@@ -107,6 +108,9 @@ export async function getDashboardKpis(
       where: filter.districtId ? { districtId: filter.districtId } : {},
       _sum: { approvedBudget: true },
     }),
+    prisma.beneficiary.count({
+      where: { AND: [bWhere, { status: { in: ["CANCELLED", "REJECTED", "ON_HOLD"] } }] },
+    }),
   ]);
 
   const inventoryValue = stock.reduce(
@@ -135,6 +139,7 @@ export async function getDashboardKpis(
     underConstruction,
     completedHouses,
     delayedHouses,
+    cancelledCount,
     totalProjectValue,
     fundsReceived,
     amountReleased,

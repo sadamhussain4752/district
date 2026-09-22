@@ -29,6 +29,7 @@ export type DashboardKpis = {
   underConstruction: number;
   completedHouses: number;
   delayedHouses: number;
+  cancelledCount: number;
   totalProjectValue: number;
   fundsReceived: number;
   amountReleased: number;
