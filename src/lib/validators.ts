@@ -72,4 +72,5 @@ export const stageUpdateSchema = z.object({
   actualEnd: z.string().optional(),
   remarks: z.string().optional(),
   stageCost: z.coerce.number().min(0).optional(),
+  labourVendorId: z.string().nullable().optional(),
 });

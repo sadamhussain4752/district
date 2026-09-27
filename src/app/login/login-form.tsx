@@ -8,7 +8,6 @@ import { Eye, EyeOff, Loader2, LogIn } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { cn } from "@/lib/utils";
 
 const schema = z.object({
   identifier: z.string().min(3, "Enter your Employee ID or email"),
@@ -16,15 +15,6 @@ const schema = z.object({
   remember: z.boolean().optional(),
 });
 type FormValues = z.infer<typeof schema>;
-
-const DEMO = [
-  { role: "Super Admin", id: "ADMIN001" },
-  { role: "District Manager", id: "DM-RANGA" },
-  { role: "Project Manager", id: "PM-001" },
-  { role: "Site Engineer", id: "ENG-014" },
-  { role: "Contractor", id: "CON-007" },
-  { role: "Accounts", id: "ACC-002" },
-];
 
 export function LoginForm() {
   const router = useRouter();
@@ -36,7 +26,6 @@ export function LoginForm() {
   const {
     register,
     handleSubmit,
-    setValue,
     formState: { errors, isSubmitting },
   } = useForm<FormValues>({
     resolver: zodResolver(schema),
@@ -135,30 +124,6 @@ export function LoginForm() {
         )}
         Login
       </Button>
-
-      <div className="rounded-md border bg-muted/40 p-3">
-        <p className="mb-2 text-xs font-medium text-muted-foreground">
-          Demo accounts — password{" "}
-          <code className="rounded bg-background px-1 py-0.5">password123</code>
-        </p>
-        <div className="flex flex-wrap gap-1.5">
-          {DEMO.map((d) => (
-            <button
-              key={d.id}
-              type="button"
-              onClick={() => {
-                setValue("identifier", d.id);
-                setValue("password", "password123");
-              }}
-              className={cn(
-                "rounded-md border bg-card px-2 py-1 text-xs hover:border-primary hover:text-primary",
-              )}
-            >
-              {d.role}
-            </button>
-          ))}
-        </div>
-      </div>
     </form>
   );
 }

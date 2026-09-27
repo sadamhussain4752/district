@@ -9,16 +9,18 @@ export const DEPLOY_STATE = (process.env.NEXT_PUBLIC_DEPLOY_STATE || "TG") as
 
 export const ROLE_LABELS: Record<Role, string> = {
   SUPER_ADMIN: "Super Admin",
-  STATE_ADMIN: "State Admin",
+  STATE_ADMIN: "Admin",
   DISTRICT_MANAGER: "District Manager",
   PROJECT_MANAGER: "Project Manager",
-  SITE_ENGINEER: "Site Engineer / Supervisor",
+  SITE_ENGINEER: "Supervisor",
   CONTRACTOR: "Builder / Contractor",
   LABOUR_VENDOR: "Labour Vendor",
   STORE_MANAGER: "Store / Inventory Manager",
   ACCOUNTS: "Accounts / Finance",
   AUDITOR: "Auditor / Viewer",
 };
+
+export const MANAGED_USER_ROLES = ["SUPER_ADMIN", "STATE_ADMIN", "SITE_ENGINEER", "ACCOUNTS", "AUDITOR"] as const;
 
 export const FINANCIAL_YEARS = [
   "2023-24",

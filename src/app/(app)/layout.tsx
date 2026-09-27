@@ -35,7 +35,7 @@ export default async function AppLayout({
   const me: MeResponse = {
     user: session,
     districtName: district?.name ?? null,
-    features: [...allowedFeatures(session.role)],
+    features: [...allowedFeatures(session.role, session.permissions)],
     unreadNotifications: unread,
   };
 

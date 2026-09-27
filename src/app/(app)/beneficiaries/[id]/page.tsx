@@ -262,7 +262,7 @@ export default function BeneficiaryDetailPage() {
                     {house.stageProgress.map((s: any) => (
                       <TableRow key={s.id}>
                         <TableCell className="font-medium">{s.stageName}</TableCell>
-                        <TableCell>{s.labourContractorName || "—"}</TableCell>
+                        <TableCell>{s.labourVendor?.name ?? s.labourContractorName ?? "—"}</TableCell>
                         <TableCell>{s.supervisorName || "—"}</TableCell>
                         <TableCell className="text-xs">{s.onlineStatus || "—"}</TableCell>
                         <TableCell className="text-right text-xs tabular-nums">
@@ -439,6 +439,7 @@ function PaymentsPanel({
   );
   const [txnRef, setTxnRef] = React.useState("");
   const [mode, setMode] = React.useState<string>(PAYMENT_MODES[0]);
+  const [releaseAmount, setReleaseAmount] = React.useState("");
 
   const mut = useMutation({
     mutationFn: (payload: any) =>
@@ -454,6 +455,7 @@ function PaymentsPanel({
       toast.success(vars.reverse ? "Payment reversed" : "Payment released");
       setOpenId(null);
       setTxnRef("");
+      setReleaseAmount("");
       qc.invalidateQueries({ queryKey: ["beneficiary", beneficiaryId] });
     },
     onError: (e: Error) => toast.error(e.message),
@@ -522,9 +524,13 @@ function PaymentsPanel({
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() =>
-                            setOpenId(openId === p.id ? null : p.id)
-                          }
+                          onClick={() => {
+                            const isClosing = openId === p.id;
+                            setOpenId(isClosing ? null : p.id);
+                            setReleaseAmount(
+                              isClosing ? "" : String(p.eligibleAmount),
+                            );
+                          }}
                         >
                           Record release
                         </Button>
@@ -572,23 +578,40 @@ function PaymentsPanel({
                             />
                           </div>
                           <div className="space-y-1">
-                            <Label className="text-xs text-muted-foreground">
+                            <Label className="text-xs">
                               Release amount
                             </Label>
-                            <div className="flex h-8 items-center px-1 text-sm font-semibold tabular-nums">
-                              {formatINR(p.eligibleAmount)}
+                            <div className="relative">
+                              <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
+                                ₹
+                              </span>
+                              <Input
+                                type="number"
+                                min="0.01"
+                                max={p.eligibleAmount}
+                                step="0.01"
+                                value={releaseAmount}
+                                onChange={(e) => setReleaseAmount(e.target.value)}
+                                className="h-8 w-40 pl-7 tabular-nums"
+                              />
                             </div>
                           </div>
                           <Button
                             size="sm"
                             variant="success"
-                            disabled={mut.isPending}
+                            disabled={
+                              mut.isPending ||
+                              !Number.isFinite(Number(releaseAmount)) ||
+                              Number(releaseAmount) <= 0 ||
+                              Number(releaseAmount) > p.eligibleAmount
+                            }
                             onClick={() =>
                               mut.mutate({
                                 paymentId: p.id,
                                 paidOn,
                                 txnRef,
                                 paymentMode: mode,
+                                releaseAmount: Number(releaseAmount),
                               })
                             }
                           >

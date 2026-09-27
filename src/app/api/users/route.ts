@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { route, parsePagination, paginated, HttpError, sortOrder } from "@/lib/api";
+import { allowedFeatures } from "@/lib/rbac";
 
 export const GET = route(
   async ({ req, user }) => {
@@ -33,7 +34,7 @@ export const GET = route(
         select: {
           id: true, employeeId: true, name: true, email: true, mobile: true,
           role: true, department: true, status: true, districtId: true,
-          lastLoginAt: true, createdAt: true,
+          permissions: true, lastLoginAt: true, createdAt: true,
         },
       }),
       prisma.user.count({ where }),
@@ -47,7 +48,7 @@ export const GET = route(
     const dMap = new Map(districts.map((d) => [d.id, d.name]));
 
     return paginated(
-      rows.map((r) => ({ ...r, districtName: r.districtId ? dMap.get(r.districtId) : null })),
+      rows.map((r) => ({ ...r, districtName: r.districtId ? dMap.get(r.districtId) : null, effectiveAccess: [...allowedFeatures(r.role, r.permissions)] })),
       total,
       page,
       pageSize,

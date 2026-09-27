@@ -6,7 +6,7 @@ export const GET = route(
   async ({ req }) => {
     const warehouseId = req.nextUrl.searchParams.get("warehouseId") || undefined;
 
-    const [stock, warehouses] = await Promise.all([
+    const [stock, warehouses, purchaseRows] = await Promise.all([
       prisma.inventoryStock.findMany({
         where: warehouseId ? { warehouseId } : {},
         include: {
@@ -16,7 +16,13 @@ export const GET = route(
       }),
       prisma.warehouse.findMany({
         orderBy: { level: "asc" },
-        select: { id: true, name: true, level: true },
+        select: { id: true, code: true, name: true, level: true },
+      }),
+      prisma.stockTransaction.count({
+        where: {
+          type: "PURCHASE_RECEIPT",
+          ...(warehouseId ? { warehouseId } : {}),
+        },
       }),
     ]);
 
@@ -35,7 +41,7 @@ export const GET = route(
         value: 0,
       };
       entry.quantity += s.quantity;
-      entry.value += s.quantity * s.material.standardRate;
+      entry.value += typeof s.value === "number" ? s.value : s.quantity * s.material.standardRate;
       byMaterial.set(key, entry);
     }
 
@@ -50,13 +56,23 @@ export const GET = route(
     }));
 
     const totalValue = items.reduce((a, i) => a + i.value, 0);
+    const totalQuantity = items.reduce((a, i) => a + i.quantity, 0);
     const critical = items.filter((i) => i.status === "CRITICAL").length;
     const low = items.filter((i) => i.status === "LOW").length;
 
     return NextResponse.json({
       items: items.sort((a, b) => a.name.localeCompare(b.name)),
       warehouses,
-      summary: { totalValue, critical, low, healthy: items.length - critical - low },
+      summary: {
+        totalValue,
+        totalQuantity,
+        purchaseRows,
+        materials: items.length,
+        locations: warehouseId ? 1 : warehouses.filter((warehouse) => warehouse.code.startsWith("MIU-")).length,
+        critical,
+        low,
+        healthy: items.length - critical - low,
+      },
     });
   },
   { feature: "inventory" },

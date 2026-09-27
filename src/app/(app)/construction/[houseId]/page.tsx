@@ -29,6 +29,7 @@ import { ChevronDown } from "lucide-react";
 import { formatINR, formatDate, formatDateTime, pct } from "@/lib/utils";
 import {
   PAYMENT_MILESTONE_LABELS,
+  PAYMENT_MODES,
   STAGE_STATUS_LABELS,
   APPROVAL_CHAIN,
 } from "@/lib/constants";
@@ -50,7 +51,7 @@ function StageCard({ s, onEdit }: { s: any; onEdit: () => void }) {
     EE: s.eeDate, CE: s.ceDate, MD: s.mdDate,
   };
   const hasDetail =
-    s.labourContractorName || s.supervisorName || s.onlineStatus ||
+    s.labourVendor?.name || s.labourContractorName || s.supervisorName || s.onlineStatus ||
     s.paymentMode || s.utrNumber || Object.values(chainDates).some(Boolean);
 
   return (
@@ -99,7 +100,7 @@ function StageCard({ s, onEdit }: { s: any; onEdit: () => void }) {
       {open && (
         <div className="border-t px-3 py-3">
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <F label="Labour Contractor" value={s.labourContractorName} />
+            <F label="Labour Contractor" value={s.labourVendor?.name ?? s.labourContractorName} />
             <F label="Supervisor" value={s.supervisorName} />
             <F label="Online Status" value={s.onlineStatus} />
             <F label="Off-line Stage" value={s.offlineStage} />
@@ -206,7 +207,8 @@ export default function HouseDetailPage() {
           <F
             label="Labour Contractor"
             value={
-              h.stageProgress?.map((s: any) => s.labourContractorName).find(Boolean) ??
+              h.labourVendor?.name ??
+              h.stageProgress?.map((s: any) => s.labourVendor?.name ?? s.labourContractorName).find(Boolean) ??
               null
             }
           />
@@ -349,28 +351,11 @@ export default function HouseDetailPage() {
 
         <TabsContent value="payments">
           {h.payments?.length ? (
-            <Card><CardContent className="pt-5">
-              <Table>
-                <TableHeader><TableRow>
-                  <TableHead>Milestone</TableHead>
-                  <TableHead className="text-right">Eligible</TableHead>
-                  <TableHead className="text-right">Released</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Paid On</TableHead>
-                </TableRow></TableHeader>
-                <TableBody>
-                  {h.payments.map((p: any) => (
-                    <TableRow key={p.id}>
-                      <TableCell className="font-medium">{PAYMENT_MILESTONE_LABELS[p.milestone] ?? p.milestone}</TableCell>
-                      <TableCell className="text-right tabular-nums">{formatINR(p.eligibleAmount)}</TableCell>
-                      <TableCell className="text-right tabular-nums">{formatINR(p.releasedAmount)}</TableCell>
-                      <TableCell><StatusBadge status={p.status} /></TableCell>
-                      <TableCell className="text-xs">{formatDate(p.paymentDate)}</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </CardContent></Card>
+            <ConstructionPayments
+              beneficiaryId={h.beneficiaryId}
+              houseId={houseId}
+              payments={h.payments}
+            />
           ) : <EmptyState title="No payment milestones" />}
         </TabsContent>
 
@@ -424,6 +409,7 @@ export default function HouseDetailPage() {
           {editStage && (
             <StageForm
               stage={editStage}
+              house={h}
               onSubmit={(payload) =>
                 stageMutation.mutate({ stageKey: editStage.stageKey, ...payload })
               }
@@ -436,12 +422,115 @@ export default function HouseDetailPage() {
   );
 }
 
+function ConstructionPayments({
+  beneficiaryId,
+  houseId,
+  payments,
+}: {
+  beneficiaryId: string;
+  houseId: string;
+  payments: any[];
+}) {
+  const qc = useQueryClient();
+  const [openId, setOpenId] = React.useState<string | null>(null);
+  const [paidOn, setPaidOn] = React.useState(new Date().toISOString().slice(0, 10));
+  const [txnRef, setTxnRef] = React.useState("");
+  const [mode, setMode] = React.useState<string>(PAYMENT_MODES[0]);
+  const [releaseAmount, setReleaseAmount] = React.useState("");
+
+  const mutation = useMutation({
+    mutationFn: (payload: Record<string, unknown>) =>
+      fetch(`/api/beneficiaries/${beneficiaryId}/payments`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      }).then(async (response) => {
+        if (!response.ok) {
+          throw new Error((await response.json()).error || "Payment release failed");
+        }
+        return response.json();
+      }),
+    onSuccess: () => {
+      toast.success("Payment released");
+      setOpenId(null);
+      setTxnRef("");
+      setReleaseAmount("");
+      qc.invalidateQueries({ queryKey: ["house", houseId] });
+      qc.invalidateQueries({ queryKey: ["beneficiary", beneficiaryId] });
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
+  return (
+    <Card><CardContent className="pt-5">
+      <Table>
+        <TableHeader><TableRow>
+          <TableHead>Milestone</TableHead>
+          <TableHead className="text-right">Eligible</TableHead>
+          <TableHead className="text-right">Released</TableHead>
+          <TableHead>Status</TableHead>
+          <TableHead>Paid On</TableHead>
+          <TableHead className="text-right"></TableHead>
+        </TableRow></TableHeader>
+        <TableBody>
+          {payments.map((payment) => {
+            const paid = payment.status === "PAID" || payment.releasedAmount > 0;
+            const amount = Number(releaseAmount);
+            const invalidAmount = !Number.isFinite(amount) || amount <= 0 || amount > payment.eligibleAmount;
+            return (
+              <React.Fragment key={payment.id}>
+                <TableRow>
+                  <TableCell className="font-medium">{PAYMENT_MILESTONE_LABELS[payment.milestone] ?? payment.milestone}</TableCell>
+                  <TableCell className="text-right tabular-nums">{formatINR(payment.eligibleAmount)}</TableCell>
+                  <TableCell className="text-right tabular-nums">{formatINR(payment.releasedAmount)}</TableCell>
+                  <TableCell><StatusBadge status={paid ? "PAID" : payment.status} /></TableCell>
+                  <TableCell className="text-xs">{formatDate(payment.paymentDate)}</TableCell>
+                  <TableCell className="text-right">
+                    {!paid && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          const closing = openId === payment.id;
+                          setOpenId(closing ? null : payment.id);
+                          setReleaseAmount(closing ? "" : String(payment.eligibleAmount));
+                        }}
+                      >
+                        Record release
+                      </Button>
+                    )}
+                  </TableCell>
+                </TableRow>
+                {openId === payment.id && !paid && (
+                  <TableRow>
+                    <TableCell colSpan={6} className="bg-muted/30">
+                      <div className="flex flex-wrap items-end gap-3 py-1">
+                        <div className="space-y-1"><Label className="text-xs">Paid / Released on</Label><Input type="date" value={paidOn} onChange={(event) => setPaidOn(event.target.value)} className="h-8 w-40" /></div>
+                        <div className="space-y-1"><Label className="text-xs">Payment mode</Label><Select value={mode} onValueChange={setMode}><SelectTrigger className="h-8 w-44"><SelectValue /></SelectTrigger><SelectContent>{PAYMENT_MODES.map((item) => <SelectItem key={item} value={item}>{item}</SelectItem>)}</SelectContent></Select></div>
+                        <div className="space-y-1"><Label className="text-xs">Txn / UTR ref</Label><Input value={txnRef} onChange={(event) => setTxnRef(event.target.value)} placeholder="e.g. PFMS/UTR no." className="h-8 w-52" /></div>
+                        <div className="space-y-1"><Label className="text-xs">Release amount</Label><div className="relative"><span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">₹</span><Input type="number" min="0.01" max={payment.eligibleAmount} step="0.01" value={releaseAmount} onChange={(event) => setReleaseAmount(event.target.value)} className="h-8 w-40 pl-7 tabular-nums" /></div></div>
+                        <Button size="sm" variant="success" disabled={mutation.isPending || invalidAmount} onClick={() => mutation.mutate({ paymentId: payment.id, paidOn, txnRef, paymentMode: mode, releaseAmount: amount })}>Confirm release</Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                )}
+              </React.Fragment>
+            );
+          })}
+        </TableBody>
+      </Table>
+    </CardContent></Card>
+  );
+}
+
 function StageForm({
   stage,
+  house,
   onSubmit,
   pending,
 }: {
   stage: any;
+  house: any;
   onSubmit: (payload: any) => void;
   pending: boolean;
 }) {
@@ -449,10 +538,26 @@ function StageForm({
   const [progress, setProgress] = React.useState(String(stage.progressPct));
   const [cost, setCost] = React.useState(String(stage.stageCost || ""));
   const [remarks, setRemarks] = React.useState(stage.remarks || "");
+  const [labourVendorId, setLabourVendorId] = React.useState(stage.labourVendorId || house.labourVendorId || "__none");
+  const labourParams = new URLSearchParams({ pageSize: "100", sort: "name", dir: "asc" });
+  if (house.districtId) labourParams.set("districtId", house.districtId);
+  const { data: labourData } = useQuery<any>({ queryKey: ["construction-labour-options", house.districtId], queryFn: () => fetch(`/api/labour?${labourParams}`).then(async (response) => { if (!response.ok) throw new Error((await response.json()).error || "Failed to load labour contractors"); return response.json(); }) });
+  const labourVendors = labourData?.data ?? [];
 
   return (
     <>
       <div className="space-y-3">
+        <div className="space-y-1.5">
+          <Label>Labour Contractor</Label>
+          <Select value={labourVendorId} onValueChange={setLabourVendorId}>
+            <SelectTrigger><SelectValue placeholder="Select labour contractor" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__none">Not assigned</SelectItem>
+              {labourVendors.map((vendor: any) => <SelectItem key={vendor.id} value={vendor.id}>{vendor.name} · {vendor.vendorCode}{vendor.supervisorName ? ` · Supervisor: ${vendor.supervisorName}` : ""}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          {!labourVendors.length && <p className="text-xs text-muted-foreground">Add a matching labour contractor in the Labour master first.</p>}
+        </div>
         <div className="space-y-1.5">
           <Label>Status</Label>
           <Select value={status} onValueChange={setStatus}>
@@ -495,6 +600,7 @@ function StageForm({
               progressPct: Number(progress),
               stageCost: cost ? Number(cost) : undefined,
               remarks: remarks || undefined,
+              labourVendorId: labourVendorId === "__none" ? null : labourVendorId,
             })
           }
         >

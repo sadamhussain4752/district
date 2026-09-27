@@ -17,7 +17,7 @@ export const GET = route(
     });
     if (!h) throw new HttpError(404, "House not found");
 
-    const [contractor, pm, engineer, supervisor, inspections, issues, dprs, consumption, payments] =
+    const [contractor, pm, engineer, supervisor, labourVendor, inspections, issues, dprs, consumption, payments] =
       await Promise.all([
         h.contractorId
           ? prisma.contractor.findUnique({ where: { id: h.contractorId } })
@@ -36,6 +36,9 @@ export const GET = route(
           : null,
         h.supervisorId
           ? prisma.supervisor.findUnique({ where: { id: h.supervisorId } })
+          : null,
+        h.labourVendorId
+          ? prisma.labourVendor.findUnique({ where: { id: h.labourVendorId } })
           : null,
         prisma.qualityInspection.findMany({
           where: { houseId: h.id },
@@ -71,13 +74,19 @@ export const GET = route(
       })) as never;
     }
 
+    const stageVendorIds = h.stageProgress.flatMap((stage) => stage.labourVendorId ? [stage.labourVendorId] : []);
+    const stageVendors = await prisma.labourVendor.findMany({ where: { id: { in: stageVendorIds } }, select: { id: true, name: true, vendorCode: true, supervisorId: true } });
+    const stageVendorMap = new Map(stageVendors.map((vendor) => [vendor.id, vendor]));
+
     return NextResponse.json({
       ...h,
+      stageProgress: h.stageProgress.map((stage) => ({ ...stage, labourVendor: stage.labourVendorId ? stageVendorMap.get(stage.labourVendorId) ?? null : null })),
       healthBand: healthBand(h.healthScore),
       contractor,
       projectManager: pm,
       engineer,
       supervisor,
+      labourVendor,
       inspections,
       issues,
       dprs,

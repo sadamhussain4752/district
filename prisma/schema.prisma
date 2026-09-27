@@ -736,6 +736,7 @@ model LabourVendor {
   districtId    String?  @db.ObjectId
   mandalId      String?  @db.ObjectId
   projectId     String?  @db.ObjectId
+  supervisorId  String?  @db.ObjectId
   workerCount   Int      @default(0)
   rateType      String?  // DAILY | CONTRACT | QUANTITY
   createdAt     DateTime @default(now())
@@ -841,6 +842,7 @@ model InventoryStock {
   warehouseId  String    @db.ObjectId
   warehouse    Warehouse @relation(fields: [warehouseId], references: [id])
   quantity     Float     @default(0)
+  value        Float     @default(0)
   updatedAt    DateTime  @updatedAt
 
   @@unique([materialId, warehouseId])

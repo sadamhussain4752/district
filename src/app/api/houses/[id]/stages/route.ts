@@ -23,6 +23,12 @@ export const PATCH = route(
     if (!stage) throw new HttpError(404, "Stage not found for this house");
 
     const meta = STAGE_META.get(input.stageKey);
+    const labourVendor = typeof input.labourVendorId === "string"
+      ? await prisma.labourVendor.findUnique({ where: { id: input.labourVendorId }, select: { id: true, name: true, supervisorId: true } }).catch(() => null)
+      : null;
+    if (typeof input.labourVendorId === "string" && !labourVendor) {
+      throw new HttpError(422, "Selected labour contractor was not found");
+    }
 
     // Business rule: a QC stage cannot be marked COMPLETED/VERIFIED without a passing inspection.
     if (
@@ -59,6 +65,9 @@ export const PATCH = route(
         progressPct: nextPct,
         remarks: input.remarks ?? stage.remarks,
         stageCost: input.stageCost ?? stage.stageCost,
+        labourVendorId: input.labourVendorId !== undefined ? input.labourVendorId : stage.labourVendorId,
+        ...(input.labourVendorId !== undefined ? { labourContractorName: null } : {}),
+        ...(labourVendor?.supervisorId ? { supervisorId: labourVendor.supervisorId } : {}),
         actualStart:
           input.actualStart
             ? new Date(input.actualStart)
@@ -85,7 +94,11 @@ export const PATCH = route(
     });
     await prisma.house.update({
       where: { id: house.id },
-      data: { actualCost: costAgg._sum.stageCost ?? 0 },
+      data: {
+        actualCost: costAgg._sum.stageCost ?? 0,
+        ...(input.labourVendorId !== undefined ? { labourVendorId: input.labourVendorId } : {}),
+        ...(labourVendor?.supervisorId ? { supervisorId: labourVendor.supervisorId } : {}),
+      },
     });
 
     const updatedHouse = await recomputeHouse(house.id);
@@ -93,7 +106,7 @@ export const PATCH = route(
 
     await writeAudit({
       user, action: "STAGE_CHANGE", module: "construction", recordId: house.id,
-      oldValue: before, newValue: { status: nextStatus, progressPct: nextPct },
+      oldValue: before, newValue: { status: nextStatus, progressPct: nextPct, ...(input.labourVendorId !== undefined ? { labourVendorId: labourVendor?.id ?? null, supervisorId: labourVendor?.supervisorId ?? null } : {}) },
       reason: input.remarks, ip: clientIp(req),
     });
     await writeActivity({

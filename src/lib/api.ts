@@ -81,7 +81,7 @@ export function route(
     try {
       const user = await getSession();
       if (!user) throw new HttpError(401, "Not authenticated");
-      if (opts.feature && !canAccess(user.role, opts.feature)) {
+      if (opts.feature && !canAccess(user.role, opts.feature, user.permissions)) {
         throw new HttpError(403, "You do not have access to this area");
       }
       if (opts.write && isReadOnly(user.role)) {

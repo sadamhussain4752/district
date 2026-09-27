@@ -64,8 +64,17 @@ export const GET = route(
       }),
     ]);
 
+    const labourVendorIds = [
+      ...(b.house?.labourVendorId ? [b.house.labourVendorId] : []),
+      ...(b.house?.stageProgress.flatMap((stage) => stage.labourVendorId ? [stage.labourVendorId] : []) ?? []),
+    ];
+    const labourVendors = await prisma.labourVendor.findMany({ where: { id: { in: labourVendorIds } }, select: { id: true, name: true, vendorCode: true } });
+    const labourVendorMap = new Map(labourVendors.map((vendor) => [vendor.id, vendor]));
+    const house = b.house ? { ...b.house, labourVendor: b.house.labourVendorId ? labourVendorMap.get(b.house.labourVendorId) ?? null : null, stageProgress: b.house.stageProgress.map((stage) => ({ ...stage, labourVendor: stage.labourVendorId ? labourVendorMap.get(stage.labourVendorId) ?? null : null })) } : null;
+
     return NextResponse.json({
       ...b,
+      house,
       aadhaar: sensitive ? undefined : undefined,
       aadhaarDisplay: sensitive
         ? b.aadhaarLast4

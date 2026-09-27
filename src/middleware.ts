@@ -11,7 +11,12 @@ const PUBLIC_PATHS = ["/login", "/forgot-password"];
 // Minimal role→feature map mirrored from src/lib/rbac.ts (edge-safe subset).
 const ROLE_FEATURES: Record<string, string[] | "*"> = {
   SUPER_ADMIN: "*",
-  STATE_ADMIN: "*",
+  STATE_ADMIN: [
+    "dashboard", "command-center", "executive-mis", "map", "beneficiaries",
+    "projects", "construction", "daily-progress", "contractors", "supervisors",
+    "labour", "inventory", "material-requests", "purchases", "expenses", "funds",
+    "payments", "quality", "issues", "approvals", "reports", "documents", "audit",
+  ],
   DISTRICT_MANAGER: [
     "dashboard", "command-center", "executive-mis", "map", "beneficiaries",
     "projects", "construction", "daily-progress", "contractors", "supervisors",
@@ -81,7 +86,10 @@ export async function middleware(req: NextRequest) {
   const feature = featureForPath(pathname);
   if (feature) {
     const allowed = ROLE_FEATURES[payload.role as string];
-    if (allowed !== "*" && !(allowed || []).includes(feature)) {
+    const permissions = Array.isArray(payload.permissions) ? payload.permissions as string[] : [];
+    const denied = permissions.includes(`feature:-${feature}`);
+    const granted = permissions.includes(`feature:+${feature}`);
+    if (denied || (!granted && allowed !== "*" && !(allowed || []).includes(feature))) {
       return NextResponse.redirect(new URL("/dashboard", req.url));
     }
   }

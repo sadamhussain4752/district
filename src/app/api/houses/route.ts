@@ -28,6 +28,7 @@ export const GET = route(
           id: true, houseCode: true, progressPct: true, status: true,
           scheduleHealth: true, healthScore: true, currentStageName: true,
           plannedCompletion: true, estimatedCost: true, actualCost: true,
+          labourVendorId: true,
           beneficiary: { select: { name: true, beneficiaryCode: true } },
           district: { select: { name: true } },
           mandal: { select: { name: true } },
@@ -36,7 +37,10 @@ export const GET = route(
       prisma.house.count({ where }),
     ]);
 
-    return paginated(rows, total, page, pageSize);
+    const vendorIds = rows.flatMap((row) => row.labourVendorId ? [row.labourVendorId] : []);
+    const vendors = await prisma.labourVendor.findMany({ where: { id: { in: vendorIds } }, select: { id: true, name: true, vendorCode: true } });
+    const vendorMap = new Map(vendors.map((vendor) => [vendor.id, vendor]));
+    return paginated(rows.map((row) => ({ ...row, labourVendor: row.labourVendorId ? vendorMap.get(row.labourVendorId) ?? null : null })), total, page, pageSize);
   },
   { feature: "construction" },
 );

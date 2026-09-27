@@ -77,12 +77,14 @@ const ROLE_FEATURES: Record<Role, FeatureKey[]> = {
   ],
 };
 
-export function canAccess(role: Role, feature: FeatureKey): boolean {
+export function canAccess(role: Role, feature: FeatureKey, permissions: string[] = []): boolean {
+  if (permissions.includes(`feature:-${feature}`)) return false;
+  if (permissions.includes(`feature:+${feature}`)) return true;
   return ROLE_FEATURES[role]?.includes(feature) ?? false;
 }
 
-export function allowedFeatures(role: Role): Set<FeatureKey> {
-  return new Set(ROLE_FEATURES[role] ?? []);
+export function allowedFeatures(role: Role, permissions: string[] = []): Set<FeatureKey> {
+  return new Set(ALL.filter((feature) => canAccess(role, feature, permissions)));
 }
 
 export const WRITE_ROLES: Role[] = [

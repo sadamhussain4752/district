@@ -49,6 +49,9 @@ const MAP: Record<string, Variant> = {
   PAID: "success",
   DRAFT: "muted",
   SUBMITTED: "default",
+  ORDERED: "warning",
+  RECEIVED: "success",
+  CLOSED: "success",
 };
 
 const LABELS: Record<string, string> = {

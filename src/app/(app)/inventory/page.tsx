@@ -1,11 +1,13 @@
 "use client";
 import * as React from "react";
+import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
+import { ShoppingCart } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
 import { KpiCard } from "@/components/dashboard/kpi-card";
 import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
@@ -35,18 +37,19 @@ export default function InventoryPage() {
     <div className="space-y-5">
       <PageHeader
         title="Inventory"
-        description="Material stock across state, district, mandal and site warehouses"
+        description="Current material stock and purchase amount from MATERIAL INVENTORY - SUMMAR (U)"
         breadcrumbs={[{ label: "Home", href: "/dashboard" }, { label: "Inventory" }]}
+        actions={<Button asChild><Link href="/purchases"><ShoppingCart className="h-4 w-4" /> Purchase / Add Stock</Link></Button>}
       />
 
       {isLoading || !data ? (
         <Skeleton className="h-24 w-full" />
       ) : (
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-          <KpiCard label="Inventory Value" value={formatINRCompact(data.summary.totalValue)} tone="navy" />
-          <KpiCard label="Critical" value={formatNumber(data.summary.critical)} tone="destructive" />
-          <KpiCard label="Low Stock" value={formatNumber(data.summary.low)} tone="warning" />
-          <KpiCard label="Healthy" value={formatNumber(data.summary.healthy)} tone="success" />
+          <KpiCard label="Stock Amount" value={formatINRCompact(data.summary.totalValue)} tone="navy" />
+          <KpiCard label="Purchase Entries" value={formatNumber(data.summary.purchaseRows)} />
+          <KpiCard label="Materials" value={formatNumber(data.summary.materials)} tone="warning" />
+          <KpiCard label="Locations" value={formatNumber(data.summary.locations)} tone="success" />
         </div>
       )}
 
@@ -79,10 +82,9 @@ export default function InventoryPage() {
               <TableRow>
                 <TableHead>Material</TableHead>
                 <TableHead>Category</TableHead>
-                <TableHead className="text-right">In Stock</TableHead>
-                <TableHead className="text-right">Reorder Level</TableHead>
-                <TableHead className="text-right">Value</TableHead>
-                <TableHead>Status</TableHead>
+                <TableHead className="text-right">Stock Quantity</TableHead>
+                <TableHead className="text-right">Average Rate</TableHead>
+                <TableHead className="text-right">Stock Amount</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -94,27 +96,14 @@ export default function InventoryPage() {
                     {formatNumber(i.quantity)} {i.unit}
                   </TableCell>
                   <TableCell className="text-right tabular-nums text-muted-foreground">
-                    {formatNumber(i.reorderLevel)}
+                    {i.quantity ? formatINR(i.value / i.quantity) : "—"}
                   </TableCell>
                   <TableCell className="text-right tabular-nums">{formatINR(i.value)}</TableCell>
-                  <TableCell>
-                    <Badge
-                      variant={
-                        i.status === "CRITICAL"
-                          ? "destructive"
-                          : i.status === "LOW"
-                            ? "warning"
-                            : "success"
-                      }
-                    >
-                      {i.status}
-                    </Badge>
-                  </TableCell>
                 </TableRow>
               ))}
               {!isLoading && !items.length && (
                 <TableRow>
-                  <TableCell colSpan={6} className="py-8 text-center text-sm text-muted-foreground">
+                  <TableCell colSpan={5} className="py-8 text-center text-sm text-muted-foreground">
                     No materials match.
                   </TableCell>
                 </TableRow>

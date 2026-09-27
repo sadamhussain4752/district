@@ -23,6 +23,7 @@ type Row = {
   beneficiary: { name: string; beneficiaryCode: string } | null;
   district: { name: string } | null;
   mandal: { name: string } | null;
+  labourVendor: { name: string; vendorCode: string } | null;
 };
 
 const columns: Column<Row>[] = [
@@ -53,6 +54,7 @@ const columns: Column<Row>[] = [
     header: "Current Stage",
     render: (r) => r.currentStageName || "—",
   },
+  { key: "labourVendor", header: "Labour Contractor", render: (r) => r.labourVendor ? <div><div className="text-sm">{r.labourVendor.name}</div><div className="text-xs text-muted-foreground">{r.labourVendor.vendorCode}</div></div> : "—" },
   {
     key: "progressPct",
     header: "Progress",

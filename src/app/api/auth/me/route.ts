@@ -28,7 +28,7 @@ export async function GET() {
   return NextResponse.json({
     user: session,
     districtName: district?.name ?? null,
-    features: [...allowedFeatures(session.role)],
+    features: [...allowedFeatures(session.role, session.permissions)],
     unreadNotifications: unread,
   });
 }

@@ -14,12 +14,14 @@ const schema = z.object({
   txnRef: z.string().optional(),
   bankName: z.string().optional(),
   paymentMode: z.string().optional(),
+  releaseAmount: z.number().positive().optional(),
   reverse: z.boolean().optional(), // undo a release
 });
 
 /**
  * Record (or reverse) the release of a beneficiary payment milestone.
- * On release: releasedAmount = eligibleAmount, status = PAID, paymentDate = paidOn.
+ * On release: releasedAmount is the submitted amount (up to the eligible amount),
+ * status = PAID, and paymentDate = paidOn.
  */
 export const PATCH = route(
   async ({ params, req, user }) => {
@@ -74,10 +76,13 @@ export const PATCH = route(
       const paidOn = new Date(body.paidOn);
       if (Number.isNaN(paidOn.getTime()))
         throw new HttpError(422, "Invalid paid-on date");
+      const releaseAmount = body.releaseAmount ?? payment.eligibleAmount;
+      if (releaseAmount > payment.eligibleAmount)
+        throw new HttpError(422, "Release amount cannot exceed eligible amount");
       updated = await prisma.beneficiaryPayment.update({
         where: { id: payment.id },
         data: {
-          releasedAmount: payment.eligibleAmount,
+          releasedAmount: releaseAmount,
           status: "PAID",
           paymentDate: paidOn,
           txnRef: body.txnRef?.trim() || payment.txnRef,
@@ -92,8 +97,8 @@ export const PATCH = route(
           await prisma.houseStageProgress.updateMany({
             where: { houseId: payment.houseId, stageKey },
             data: {
-              receivedAmount: payment.eligibleAmount,
-              balanceAmount: 0,
+              receivedAmount: releaseAmount,
+              balanceAmount: payment.eligibleAmount - releaseAmount,
               status: "COMPLETED",
               approvalStatus: "APPROVED",
               paymentDate: paidOn,
@@ -155,7 +160,7 @@ export const PATCH = route(
       verb: body.reverse ? "reversed" : "released",
       summary: body.reverse
         ? `Reversed ${payment.milestone} payment for ${payment.beneficiary.name}`
-        : `Released ${payment.milestone} payment ₹${payment.eligibleAmount.toLocaleString("en-IN")} for ${payment.beneficiary.name}`,
+        : `Released ${payment.milestone} payment ₹${updated.releasedAmount.toLocaleString("en-IN")} for ${payment.beneficiary.name}`,
       districtId: payment.beneficiary.districtId,
       link: `/beneficiaries/${params.id}`,
     });
