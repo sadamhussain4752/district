@@ -1,5 +1,6 @@
 "use client";
 import * as React from "react";
+import Link from "next/link";
 import { Pencil, Plus, Trash2 } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
 import { DataTable, type Column } from "@/components/data-table";
@@ -12,7 +13,8 @@ export default function Page() {
     { key: "name", header: "Supervisor", sortable: true, render: (r) => <div><div className="font-medium">{r.name}</div><div className="text-xs text-muted-foreground">{r.supervisorCode}</div></div> },
     { key: "mobile", header: "Contact", render: (r) => r.mobile || "—" }, { key: "contractorName", header: "Contractor", render: (r) => r.contractorName || "—" },
     { key: "location", header: "Location", render: (r) => [r.districtName, r.mandalName].filter(Boolean).join(" / ") || "—" }, { key: "projectName", header: "Project", render: (r) => r.projectName || "—" },
-    { key: "activeSites", header: "Active sites", sortable: true, className: "text-right", render: (r) => <span className="tabular-nums">{r.activeSites ?? 0}</span> },
+    { key: "activeSites", header: "Active sites", sortable: true, className: "text-right", render: (r) => <Link href={`/construction?supervisorId=${r.id}`} className="tabular-nums text-primary hover:underline" title={`Houses supervised by ${r.name}`}>{r.activeSites ?? 0}</Link> },
+    { key: "labour", header: "Labour contractors", render: (r) => <Link href={`/labour?supervisorId=${r.id}`} className="text-primary hover:underline">View</Link> },
     { key: "actions", header: "", exportable: false, className: "w-24 text-right", render: (r) => <div className="flex justify-end gap-1"><Button size="icon" variant="ghost" aria-label={`Edit ${r.name}`} onClick={() => setEditing(r)}><Pencil className="h-4 w-4" /></Button><Button size="icon" variant="ghost" className="text-destructive" aria-label={`Delete ${r.name}`} onClick={() => setDeleting(r)}><Trash2 className="h-4 w-4" /></Button></div> },
   ];
   return (

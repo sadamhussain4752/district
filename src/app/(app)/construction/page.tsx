@@ -1,5 +1,8 @@
 "use client";
 import * as React from "react";
+import Link from "next/link";
+import { useSearchParams } from "next/navigation";
+import { useQuery } from "@tanstack/react-query";
 import { PageHeader } from "@/components/page-header";
 import { DataTable, type Column } from "@/components/data-table";
 import { StatusBadge } from "@/components/status-badge";
@@ -8,6 +11,9 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { useFilters } from "@/components/app-shell/filters";
+import {
+  CONSTRUCTION_STAGES, STAGE_STATUS_GROUP_LABELS, type StageStatusGroup,
+} from "@/lib/constants";
 import { formatINR } from "@/lib/utils";
 
 type Row = {
@@ -54,7 +60,7 @@ const columns: Column<Row>[] = [
     header: "Current Stage",
     render: (r) => r.currentStageName || "—",
   },
-  { key: "labourVendor", header: "Labour Contractor", render: (r) => r.labourVendor ? <div><div className="text-sm">{r.labourVendor.name}</div><div className="text-xs text-muted-foreground">{r.labourVendor.vendorCode}</div></div> : "—" },
+  { key: "labourVendor", header: "Labour Contractor", render: (r) => r.labourVendor ? <div><div className="text-sm"><Link href="/labour" className="text-primary hover:underline">{r.labourVendor.name}</Link></div><div className="text-xs text-muted-foreground">{r.labourVendor.vendorCode}</div></div> : "—" },
   {
     key: "progressPct",
     header: "Progress",
@@ -100,9 +106,31 @@ const columns: Column<Row>[] = [
 ];
 
 export default function ConstructionPage() {
+  // useSearchParams needs a Suspense boundary for the prerender pass.
+  return (
+    <React.Suspense fallback={null}>
+      <ConstructionList />
+    </React.Suspense>
+  );
+}
+
+function ConstructionList() {
   const { districtId } = useFilters();
-  const [health, setHealth] = React.useState("all");
-  const [status, setStatus] = React.useState("all");
+  const sp = useSearchParams();
+  const [health, setHealth] = React.useState(sp.get("health") ?? "all");
+  const [status, setStatus] = React.useState(sp.get("status") ?? "all");
+  // Arrived from the dashboard's stage tiles: /construction?stage=BL&stageStatus=done
+  const [stage, setStage] = React.useState(sp.get("stage") ?? "all");
+  const [stageStatus, setStageStatus] = React.useState(sp.get("stageStatus") ?? "all");
+  const [labourVendorId, setLabourVendorId] = React.useState(sp.get("labourVendorId") ?? "all");
+  // Arrived from the Contractors / Supervisors masters — keep the scope, show it as a chip.
+  const [contractorId, setContractorId] = React.useState(sp.get("contractorId") ?? "");
+  const [supervisorId, setSupervisorId] = React.useState(sp.get("supervisorId") ?? "");
+
+  const { data: vendors } = useQuery<{ data: { id: string; name: string; vendorCode: string }[] }>({
+    queryKey: ["labour-filter-options"],
+    queryFn: () => fetch("/api/labour?pageSize=200&sort=name&dir=asc").then((r) => r.json()),
+  });
 
   return (
     <div>
@@ -111,20 +139,82 @@ export default function ConstructionPage() {
         description="Every beneficiary house as an individual construction unit"
         breadcrumbs={[{ label: "Home", href: "/dashboard" }, { label: "Construction" }]}
       />
+
+      {(contractorId || supervisorId) && (
+        <div className="mb-3 flex flex-wrap items-center gap-2 text-xs">
+          <span className="text-muted-foreground">Scoped to</span>
+          {contractorId && (
+            <button
+              className="rounded-full border px-2.5 py-1 hover:bg-accent"
+              onClick={() => setContractorId("")}
+            >
+              one contractor ✕
+            </button>
+          )}
+          {supervisorId && (
+            <button
+              className="rounded-full border px-2.5 py-1 hover:bg-accent"
+              onClick={() => setSupervisorId("")}
+            >
+              one supervisor ✕
+            </button>
+          )}
+        </div>
+      )}
       <DataTable<Row>
         endpoint="/api/houses"
-        queryKey={["houses", districtId, health, status]}
+        queryKey={["houses", districtId, health, status, stage, stageStatus, labourVendorId, contractorId, supervisorId]}
         columns={columns}
         extraParams={{
           districtId: districtId ?? "",
           health: health === "all" ? "" : health,
           status: status === "all" ? "" : status,
+          stage: stage === "all" ? "" : stage,
+          stageStatus: stage === "all" || stageStatus === "all" ? "" : stageStatus,
+          labourVendorId: labourVendorId === "all" ? "" : labourVendorId,
+          contractorId,
+          supervisorId,
         }}
         rowHref={(r) => `/construction/${r.id}`}
         searchPlaceholder="Search house code…"
         exportName="houses"
         toolbar={
           <>
+            <Select value={labourVendorId} onValueChange={setLabourVendorId}>
+              <SelectTrigger className="h-9 w-52">
+                <SelectValue placeholder="Labour contractor" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All labour contractors</SelectItem>
+                {(vendors?.data ?? []).map((v) => (
+                  <SelectItem key={v.id} value={v.id}>{v.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={stage} onValueChange={setStage}>
+              <SelectTrigger className="h-9 w-44">
+                <SelectValue placeholder="Stage" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All stages</SelectItem>
+                {CONSTRUCTION_STAGES.map((s) => (
+                  <SelectItem key={s.key} value={s.key}>{s.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={stageStatus} onValueChange={setStageStatus} disabled={stage === "all"}>
+              <SelectTrigger className="h-9 w-40">
+                <SelectValue placeholder="Stage status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Any stage status</SelectItem>
+                {(Object.keys(STAGE_STATUS_GROUP_LABELS) as StageStatusGroup[]).map((g) => (
+                  <SelectItem key={g} value={g}>
+                    {STAGE_STATUS_GROUP_LABELS[g]}{g === "done" ? " ✅" : ""}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             <Select value={health} onValueChange={setHealth}>
               <SelectTrigger className="h-9 w-36">
                 <SelectValue placeholder="Schedule" />

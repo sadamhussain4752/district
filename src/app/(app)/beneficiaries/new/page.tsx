@@ -37,11 +37,12 @@ export default function NewBeneficiaryPage() {
     formState: { errors, isSubmitting },
   } = useForm<FormValues>({
     resolver: zodResolver(beneficiaryCreateSchema),
-    defaultValues: { financialYear: CURRENT_FY, scheme: "Indiramma Illu" },
+    defaultValues: { financialYear: CURRENT_FY, scheme: "Indiramma Illu", otherVillageName: "" },
   });
 
   const districtId = watch("districtId");
   const mandalId = watch("mandalId");
+  const villageId = watch("villageId");
 
   const mandals = useQuery<any[]>({
     queryKey: ["loc-mandals", districtId],
@@ -121,7 +122,7 @@ export default function NewBeneficiaryPage() {
           <CardContent className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             <div className="space-y-1.5">
               <Label>District *</Label>
-              <Select onValueChange={(v) => { setValue("districtId", v); setValue("mandalId", ""); setValue("villageId", ""); }}>
+              <Select onValueChange={(v) => { setValue("districtId", v); setValue("mandalId", ""); setValue("villageId", ""); setValue("otherVillageName", ""); }}>
                 <SelectTrigger><SelectValue placeholder="Select district" /></SelectTrigger>
                 <SelectContent>
                   {districts.data?.map((d) => (
@@ -136,7 +137,7 @@ export default function NewBeneficiaryPage() {
               <Select
                 disabled={!districtId}
                 value={mandalId || ""}
-                onValueChange={(v) => { setValue("mandalId", v); setValue("villageId", ""); }}
+                onValueChange={(v) => { setValue("mandalId", v); setValue("villageId", ""); setValue("otherVillageName", ""); }}
               >
                 <SelectTrigger><SelectValue placeholder="Select mandal" /></SelectTrigger>
                 <SelectContent>
@@ -151,18 +152,20 @@ export default function NewBeneficiaryPage() {
               <Label>Village *</Label>
               <Select
                 disabled={!mandalId}
-                value={watch("villageId") || ""}
-                onValueChange={(v) => setValue("villageId", v)}
+                value={villageId || ""}
+                onValueChange={(v) => { setValue("villageId", v, { shouldValidate: true }); if (v !== "__other__") setValue("otherVillageName", ""); }}
               >
                 <SelectTrigger><SelectValue placeholder="Select village" /></SelectTrigger>
                 <SelectContent>
                   {villages.data?.map((v) => (
                     <SelectItem key={v.id} value={v.id}>{v.name}</SelectItem>
                   ))}
+                  <SelectItem value="__other__">Other</SelectItem>
                 </SelectContent>
               </Select>
               {errors.villageId && <p className="text-xs text-destructive">{errors.villageId.message}</p>}
             </div>
+            {villageId === "__other__" && <FieldInput label="Other Village Name *" error={errors.otherVillageName?.message} placeholder="Enter village name" {...register("otherVillageName")} />}
             <FieldInput label="Address" {...register("address")} />
             <FieldInput label="PIN Code" {...register("pinCode")} />
           </CardContent>

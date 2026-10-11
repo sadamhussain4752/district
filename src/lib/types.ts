@@ -34,6 +34,8 @@ export type DashboardKpis = {
   fundsReceived: number;
   amountReleased: number;
   totalExpenditure: number;
+  /** Stage money received from TSHCL against houses (sum of House.actualCost). */
+  constructionReceived: number;
   pendingPayments: number;
   inventoryValue: number;
   lowStockItems: number;

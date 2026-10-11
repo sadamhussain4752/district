@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { route, parsePagination, paginated, sortOrder } from "@/lib/api";
 import { scopeFilter } from "@/lib/rbac";
+import { STAGE_STATUS_GROUPS, type StageStatusGroup } from "@/lib/constants";
 
 export const GET = route(
   async ({ req, user }) => {
@@ -9,10 +10,22 @@ export const GET = route(
 
     const and: Record<string, unknown>[] = [scopeFilter(user)];
     if (q) and.push({ houseCode: { contains: q, mode: "insensitive" } });
-    for (const key of ["districtId", "mandalId", "projectId", "contractorId", "status"] as const) {
+    for (const key of ["districtId", "mandalId", "projectId", "contractorId", "labourVendorId", "supervisorId", "status"] as const) {
       const v = sp.get(key);
       if (v) and.push({ [key]: v });
     }
+    // Stage filter: ?stage=BL[&stageStatus=done|started|not-started]
+    const stage = sp.get("stage");
+    if (stage) {
+      const group = sp.get("stageStatus") as StageStatusGroup | null;
+      const statuses = group ? STAGE_STATUS_GROUPS[group] : undefined;
+      and.push({
+        stageProgress: {
+          some: { stageKey: stage, ...(statuses ? { status: { in: [...statuses] } } : {}) },
+        },
+      });
+    }
+
     const health = sp.get("health");
     if (health === "delayed") and.push({ scheduleHealth: { in: ["DELAYED", "CRITICAL"] } });
     if (health === "at-risk") and.push({ scheduleHealth: "AT_RISK" });

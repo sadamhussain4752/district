@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { ArrowRight, ShieldAlert } from "lucide-react";
+import { ArrowRight, Loader2, Pencil, ShieldAlert } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -24,7 +24,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { formatINR, formatDate, pct } from "@/lib/utils";
 import {
+  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
+} from "@/components/ui/dialog";
+import {
   BENEFICIARY_STATUS_LABELS,
+  ONLINE_STATUSES,
   PAYMENT_MILESTONE_LABELS,
   PAYMENT_MODES,
 } from "@/lib/constants";
@@ -43,6 +47,7 @@ function Field({ label, value }: { label: string; value: React.ReactNode }) {
 export default function BeneficiaryDetailPage() {
   const { id } = useParams<{ id: string }>();
   const qc = useQueryClient();
+  const [editingStage, setEditingStage] = React.useState<any>(null);
 
   const { data, isLoading, isError, refetch } = useQuery<any>({
     queryKey: ["beneficiary", id],
@@ -256,6 +261,7 @@ export default function BeneficiaryDetailPage() {
                       <TableHead>Supervisor</TableHead>
                       <TableHead>Online Status</TableHead>
                       <TableHead className="text-right">Bill / Received</TableHead>
+                      <TableHead className="w-10"></TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -268,6 +274,16 @@ export default function BeneficiaryDetailPage() {
                         <TableCell className="text-right text-xs tabular-nums">
                           {formatINR(s.billValue)} / {formatINR(s.receivedAmount)}
                         </TableCell>
+                        <TableCell className="text-right">
+                          <Button
+                            variant="ghost" size="icon" className="h-8 w-8"
+                            title="Edit bill / received / online status"
+                            aria-label={`Edit ${s.stageName}`}
+                            onClick={() => setEditingStage(s)}
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                        </TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
@@ -275,6 +291,13 @@ export default function BeneficiaryDetailPage() {
               </CardContent>
             </Card>
           ) : null}
+
+          <StageBillDialog
+            beneficiaryId={id}
+            houseId={house?.id}
+            stage={editingStage}
+            onClose={() => setEditingStage(null)}
+          />
         </TabsContent>
 
         <TabsContent value="progress">
@@ -640,5 +663,121 @@ function PaymentsPanel({
         </Table>
       </CardContent>
     </Card>
+  );
+}
+
+const NONE = "__none";
+
+/** Edit a stage's bill value, received amount and TSHCL online status. */
+function StageBillDialog({
+  beneficiaryId,
+  houseId,
+  stage,
+  onClose,
+}: {
+  beneficiaryId: string;
+  houseId?: string;
+  stage: any | null;
+  onClose: () => void;
+}) {
+  const qc = useQueryClient();
+  const [billValue, setBillValue] = React.useState("");
+  const [receivedAmount, setReceivedAmount] = React.useState("");
+  const [onlineStatus, setOnlineStatus] = React.useState(NONE);
+
+  React.useEffect(() => {
+    if (!stage) return;
+    setBillValue(String(stage.billValue ?? 0));
+    setReceivedAmount(String(stage.receivedAmount ?? 0));
+    setOnlineStatus(stage.onlineStatus || NONE);
+  }, [stage]);
+
+  const mut = useMutation({
+    mutationFn: () =>
+      fetch(`/api/houses/${houseId}/stages`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          stageKey: stage.stageKey,
+          billValue,
+          receivedAmount,
+          onlineStatus: onlineStatus === NONE ? null : onlineStatus,
+        }),
+      }).then(async (r) => {
+        if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || "Update failed");
+        return r.json();
+      }),
+    onSuccess: () => {
+      toast.success(`${stage.stageName} updated`);
+      qc.invalidateQueries({ queryKey: ["beneficiary", beneficiaryId] });
+      onClose();
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  // Keep a value imported from the workbook that is not in the standard list.
+  const statuses =
+    stage?.onlineStatus && !ONLINE_STATUSES.includes(stage.onlineStatus)
+      ? [stage.onlineStatus, ...ONLINE_STATUSES]
+      : ONLINE_STATUSES;
+  const balance = Math.max(0, (Number(billValue) || 0) - (Number(receivedAmount) || 0));
+  const over = (Number(receivedAmount) || 0) > (Number(billValue) || 0);
+
+  return (
+    <Dialog open={!!stage} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Edit {stage?.stageName}</DialogTitle>
+          <DialogDescription>
+            Bill, amount received and the TSHCL online approval stage. Changes are audit-logged.
+          </DialogDescription>
+        </DialogHeader>
+        <form
+          id="stage-bill"
+          className="grid gap-3 sm:grid-cols-2"
+          onSubmit={(e) => {
+            e.preventDefault();
+            mut.mutate();
+          }}
+        >
+          <div className="space-y-1">
+            <Label className="text-xs">Bill value (₹)</Label>
+            <Input
+              type="number" min="0" step="1" required inputMode="decimal"
+              value={billValue} onChange={(e) => setBillValue(e.target.value)}
+            />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs">Received (₹)</Label>
+            <Input
+              type="number" min="0" step="1" required inputMode="decimal"
+              value={receivedAmount} onChange={(e) => setReceivedAmount(e.target.value)}
+            />
+          </div>
+          <div className="space-y-1 sm:col-span-2">
+            <Label className="text-xs">Online status</Label>
+            <Select value={onlineStatus} onValueChange={setOnlineStatus}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value={NONE}>—</SelectItem>
+                {statuses.map((o) => (
+                  <SelectItem key={o} value={o}>{o}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <p className={`text-xs sm:col-span-2 ${over ? "text-destructive" : "text-muted-foreground"}`}>
+            {over ? "Received cannot be more than the bill value." : `Balance ${formatINR(balance)}`}
+          </p>
+        </form>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose} disabled={mut.isPending}>Cancel</Button>
+          <Button type="submit" form="stage-bill" disabled={mut.isPending || over}>
+            {mut.isPending && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
+            Save
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

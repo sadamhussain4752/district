@@ -52,6 +52,21 @@ export const CONSTRUCTION_STAGES: {
   { key: "COMP", name: "Completion", shortName: "COMP", mandatory: true, qc: false, milestone: "COMPLETION", weight: 20, billValue: 160000 },
 ];
 
+/** How stage statuses roll up on the dashboard's stage filter. */
+export const STAGE_STATUS_GROUPS = {
+  done: ["COMPLETED", "VERIFIED"],
+  started: ["STARTED", "IN_PROGRESS", "PENDING_VERIFICATION", "REWORK_REQUIRED", "REJECTED"],
+  "not-started": ["NOT_STARTED"],
+} as const;
+
+export type StageStatusGroup = keyof typeof STAGE_STATUS_GROUPS;
+
+export const STAGE_STATUS_GROUP_LABELS: Record<StageStatusGroup, string> = {
+  done: "Done",
+  started: "Work Started",
+  "not-started": "Not Started",
+};
+
 /** Full contract value of one Indiramma Indlu house (sum of stage bill values). */
 export const HOUSE_CONTRACT_VALUE = CONSTRUCTION_STAGES.reduce(
   (a, s) => a + s.billValue,
@@ -154,4 +169,18 @@ export const ISSUE_CATEGORIES = [
   "Payment issue",
   "Site access",
   "Technical problem",
+];
+
+/** TSHCL online approval chain, as recorded in the Astonic workbook. */
+export const ONLINE_STATUSES = [
+  "Entry _ Pending",
+  "PS",
+  "AE",
+  "PD",
+  "Collector",
+  "EE",
+  "CE",
+  "MD",
+  "MD-Approve Payment not Done",
+  "MD-Approve Payment Done",
 ];

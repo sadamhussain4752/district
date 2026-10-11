@@ -19,7 +19,11 @@ import { Progress } from "@/components/ui/misc";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { StatusBadge } from "@/components/status-badge";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
 import { useFilters } from "@/components/app-shell/filters";
+import { CONSTRUCTION_STAGES } from "@/lib/constants";
 import {
   formatINRCompact, formatNumber, timeAgo, pct,
 } from "@/lib/utils";
@@ -48,6 +52,18 @@ export default function DashboardPage() {
         `/api/dashboard/charts${districtId ? `?districtId=${districtId}` : ""}`,
       ).then((r) => r.json()),
   });
+  const [stageKey, setStageKey] = React.useState(CONSTRUCTION_STAGES[1].key); // BL
+  const stageStats = useQuery<any>({
+    queryKey: ["dash-stages", districtId],
+    queryFn: () =>
+      fetch(`/api/dashboard/stages${districtId ? `?districtId=${districtId}` : ""}`).then((r) =>
+        r.json(),
+      ),
+  });
+  const stage = (stageStats.data?.stages ?? []).find((s: any) => s.key === stageKey);
+  const stageHref = (group: string) =>
+    `/construction?stage=${stageKey}&stageStatus=${group}${districtId ? `&districtId=${districtId}` : ""}`;
+
   const activity = useQuery<any[]>({
     queryKey: ["dash-activity"],
     queryFn: () => fetch("/api/dashboard/activity?take=12").then((r) => r.json()),
@@ -94,13 +110,102 @@ export default function DashboardPage() {
       </div>
 
       {/* Financial KPIs */}
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-6">
         <KpiCard label="Total Project Value" value={formatINRCompact(k?.totalProjectValue)} loading={loading} tone="navy" />
         <KpiCard label="Govt Funds Received" value={formatINRCompact(k?.fundsReceived)} loading={loading} tone="success" href="/funds" />
         <KpiCard label="Amount Released" value={formatINRCompact(k?.amountReleased)} loading={loading} href="/payments" />
+        <KpiCard label="Stage Money Received" value={formatINRCompact(k?.constructionReceived)} loading={loading} tone="success" href="/construction" />
         <KpiCard label="Total Expenditure" value={formatINRCompact(k?.totalExpenditure)} loading={loading} href="/expenses" />
         <KpiCard label="Available Balance" value={formatINRCompact(k?.availableBalance)} loading={loading} tone={k && k.availableBalance < 0 ? "destructive" : "success"} />
       </div>
+
+      {/* Stage-wise progress */}
+      <Card>
+        <CardHeader className="flex-row flex-wrap items-center justify-between gap-2">
+          <div>
+            <CardTitle>Stage-wise Progress</CardTitle>
+            <p className="text-sm text-muted-foreground">
+              Houses by construction stage{districtName ? ` · ${districtName}` : " · statewide"}
+            </p>
+          </div>
+          <Select value={stageKey} onValueChange={setStageKey}>
+            <SelectTrigger className="h-9 w-56"><SelectValue placeholder="Stage" /></SelectTrigger>
+            <SelectContent>
+              {CONSTRUCTION_STAGES.map((s) => (
+                <SelectItem key={s.key} value={s.key}>{s.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+            <KpiCard
+              label={`${stage?.shortName ?? ""} Done ✅`}
+              value={formatNumber(stage?.done)}
+              sub={`${pct(stage?.donePct)} of ${formatNumber(stage?.total)} houses`}
+              tone="success"
+              loading={stageStats.isLoading}
+              href={stageHref("done")}
+            />
+            <KpiCard
+              label="Work Started"
+              value={formatNumber(stage?.started)}
+              sub="In progress / awaiting verification"
+              tone="warning"
+              loading={stageStats.isLoading}
+              href={stageHref("started")}
+            />
+            <KpiCard
+              label="Not Started"
+              value={formatNumber(stage?.notStarted)}
+              sub="Stage not begun"
+              loading={stageStats.isLoading}
+              href={stageHref("not-started")}
+            />
+            <KpiCard
+              label="Billed / Received"
+              value={formatINRCompact(stage?.receivedAmount)}
+              sub={`of ${formatINRCompact(stage?.billValue)} billed`}
+              tone="navy"
+              loading={stageStats.isLoading}
+            />
+          </div>
+
+          <div className="overflow-x-auto rounded-md border">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Stage</TableHead>
+                  <TableHead className="text-right">Done ✅</TableHead>
+                  <TableHead className="text-right">Work Started</TableHead>
+                  <TableHead className="text-right">Not Started</TableHead>
+                  <TableHead className="w-40">Completion</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {(stageStats.data?.stages ?? []).map((s: any) => (
+                  <TableRow
+                    key={s.key}
+                    className={`cursor-pointer ${s.key === stageKey ? "bg-muted/50" : ""}`}
+                    onClick={() => setStageKey(s.key)}
+                  >
+                    <TableCell className="font-medium">{s.name}</TableCell>
+                    <TableCell className="text-right tabular-nums">{formatNumber(s.done)}</TableCell>
+                    <TableCell className="text-right tabular-nums">{formatNumber(s.started)}</TableCell>
+                    <TableCell className="text-right tabular-nums">{formatNumber(s.notStarted)}</TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        <Progress value={s.donePct} className="h-1.5" />
+                        <span className="w-12 text-right text-xs tabular-nums">{pct(s.donePct)}</span>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Map + right panel */}
       <div className="grid gap-4 lg:grid-cols-3">

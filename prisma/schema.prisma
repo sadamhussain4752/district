@@ -739,10 +739,41 @@ model LabourVendor {
   supervisorId  String?  @db.ObjectId
   workerCount   Int      @default(0)
   rateType      String?  // DAILY | CONTRACT | QUANTITY
+
+  // Labour_Payment Details sheet: houses done per stage + the payment chart
+  augerCount    Int      @default(0)
+  blCount       Int      @default(0)
+  rlCount       Int      @default(0)
+  rcCount       Int      @default(0)
+  compCount     Int      @default(0)
+  claimAmount   Float    @default(0) // gross "Total"
+  tdsAmount     Float    @default(0) // TDS @ 1%
+  netPayable    Float    @default(0)
+  paidAmount    Float    @default(0)
+  balanceAmount Float    @default(0)
+
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
   labourEntries LabourEntry[]
+  mandalClaims  LabourMandalClaim[]
+}
+
+/** One "Labour_Payment Details" row: a vendor's stage counts in one mandal. */
+model LabourMandalClaim {
+  id         String       @id @default(auto()) @map("_id") @db.ObjectId
+  vendorId   String       @db.ObjectId
+  vendor     LabourVendor @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+  mandalId   String?      @db.ObjectId
+  mandalName String
+  augerCount Int          @default(0)
+  blCount    Int          @default(0)
+  rlCount    Int          @default(0)
+  rcCount    Int          @default(0)
+  compCount  Int          @default(0)
+  createdAt  DateTime     @default(now())
+
+  @@index([vendorId])
 }
 
 model LabourEntry {

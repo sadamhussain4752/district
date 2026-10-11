@@ -50,7 +50,19 @@ export const PATCH = route(
       }
     }
 
-    const before = { status: stage.status, progressPct: stage.progressPct };
+    const before = {
+      status: stage.status,
+      progressPct: stage.progressPct,
+      billValue: stage.billValue,
+      receivedAmount: stage.receivedAmount,
+      onlineStatus: stage.onlineStatus,
+    };
+    const billValue = input.billValue ?? stage.billValue;
+    const receivedAmount = input.receivedAmount ?? stage.receivedAmount;
+    if (receivedAmount > billValue)
+      throw new HttpError(422, "Received amount cannot exceed the bill value");
+    const onlineStatus =
+      input.onlineStatus !== undefined ? input.onlineStatus || null : stage.onlineStatus;
     const nextStatus = input.status ?? stage.status;
     const nextPct =
       input.progressPct ??
@@ -65,6 +77,10 @@ export const PATCH = route(
         progressPct: nextPct,
         remarks: input.remarks ?? stage.remarks,
         stageCost: input.stageCost ?? stage.stageCost,
+        billValue,
+        receivedAmount,
+        balanceAmount: Math.max(0, billValue - receivedAmount),
+        onlineStatus,
         labourVendorId: input.labourVendorId !== undefined ? input.labourVendorId : stage.labourVendorId,
         ...(input.labourVendorId !== undefined ? { labourContractorName: null } : {}),
         ...(labourVendor?.supervisorId ? { supervisorId: labourVendor.supervisorId } : {}),
@@ -72,11 +88,13 @@ export const PATCH = route(
           input.actualStart
             ? new Date(input.actualStart)
             : stage.actualStart ??
-              (nextStatus !== "NOT_STARTED" ? new Date() : null),
+              // Only stamp a start date when the status itself is being set —
+              // a bill / online-status edit must not start the stage.
+              (input.status && nextStatus !== "NOT_STARTED" ? new Date() : null),
         actualEnd:
           input.actualEnd
             ? new Date(input.actualEnd)
-            : nextStatus === "COMPLETED" || nextStatus === "VERIFIED"
+            : input.status && (nextStatus === "COMPLETED" || nextStatus === "VERIFIED")
               ? stage.actualEnd ?? new Date()
               : stage.actualEnd,
         approvalStatus:
@@ -106,7 +124,8 @@ export const PATCH = route(
 
     await writeAudit({
       user, action: "STAGE_CHANGE", module: "construction", recordId: house.id,
-      oldValue: before, newValue: { status: nextStatus, progressPct: nextPct, ...(input.labourVendorId !== undefined ? { labourVendorId: labourVendor?.id ?? null, supervisorId: labourVendor?.supervisorId ?? null } : {}) },
+      oldValue: before,
+      newValue: { status: nextStatus, progressPct: nextPct, billValue, receivedAmount, onlineStatus, ...(input.labourVendorId !== undefined ? { labourVendorId: labourVendor?.id ?? null, supervisorId: labourVendor?.supervisorId ?? null } : {}) },
       reason: input.remarks, ip: clientIp(req),
     });
     await writeActivity({

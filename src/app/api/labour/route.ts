@@ -13,13 +13,22 @@ export const GET = route(async ({ req }) => {
     if (value) filters.push({ [key]: value });
   }
   const where = filters.length ? { AND: filters } : {};
-  const [rows, total] = await Promise.all([prisma.labourVendor.findMany({ where, skip, take, orderBy: sortOrder(sort, dir, ["createdAt", "name", "vendorCode", "workerCount"], "name") }), prisma.labourVendor.count({ where })]);
+  const totals = await prisma.labourVendor.aggregate({
+    where,
+    _sum: { claimAmount: true, tdsAmount: true, netPayable: true, paidAmount: true, balanceAmount: true, augerCount: true, blCount: true, rlCount: true, rcCount: true, compCount: true },
+  });
+  const [rows, total] = await Promise.all([prisma.labourVendor.findMany({ where, skip, take, orderBy: sortOrder(sort, dir, ["createdAt", "name", "vendorCode", "workerCount", "netPayable", "balanceAmount", "paidAmount"], "name") }), prisma.labourVendor.count({ where })]);
   const ids = <T,>(fn: (r: typeof rows[number]) => T | null) => rows.flatMap((r) => { const value = fn(r); return value ? [value] : []; }) as string[];
   const [districts, mandals, projects, contractors, supervisors, entries] = await Promise.all([
     prisma.district.findMany({ where: { id: { in: ids((r) => r.districtId) } }, select: { id: true, name: true } }), prisma.mandal.findMany({ where: { id: { in: ids((r) => r.mandalId) } }, select: { id: true, name: true } }), prisma.project.findMany({ where: { id: { in: ids((r) => r.projectId) } }, select: { id: true, name: true } }), prisma.contractor.findMany({ where: { id: { in: ids((r) => r.contractorId) } }, select: { id: true, companyName: true } }), prisma.supervisor.findMany({ where: { id: { in: ids((r) => r.supervisorId) } }, select: { id: true, name: true } }), prisma.labourEntry.groupBy({ by: ["vendorId"], where: { vendorId: { in: rows.map((r) => r.id) } }, _count: true }),
   ]);
   const map = (a: { id: string; name: string }[]) => new Map(a.map((x) => [x.id, x.name])); const d = map(districts), m = map(mandals), p = map(projects), s = map(supervisors), c = new Map(contractors.map((x) => [x.id, x.companyName])), e = new Map(entries.map((x) => [x.vendorId, x._count]));
-  return paginated(rows.map((r) => ({ ...r, entryCount: e.get(r.id) ?? 0, districtName: r.districtId ? d.get(r.districtId) : null, mandalName: r.mandalId ? m.get(r.mandalId) : null, projectName: r.projectId ? p.get(r.projectId) : null, contractorName: r.contractorId ? c.get(r.contractorId) : null, supervisorName: r.supervisorId ? s.get(r.supervisorId) : null })), total, page, pageSize);
+  const claims = await prisma.labourMandalClaim.findMany({ where: { vendorId: { in: rows.map((r) => r.id) } }, orderBy: { mandalName: "asc" } });
+  const claimsByVendor = new Map<string, typeof claims>();
+  for (const claim of claims) claimsByVendor.set(claim.vendorId, [...(claimsByVendor.get(claim.vendorId) ?? []), claim]);
+  const response = paginated(rows.map((r) => ({ ...r, mandalClaims: claimsByVendor.get(r.id) ?? [], houseCount: r.augerCount + r.blCount + r.rlCount + r.rcCount + r.compCount, entryCount: e.get(r.id) ?? 0, districtName: r.districtId ? d.get(r.districtId) : null, mandalName: r.mandalId ? m.get(r.mandalId) : null, projectName: r.projectId ? p.get(r.projectId) : null, contractorName: r.contractorId ? c.get(r.contractorId) : null, supervisorName: r.supervisorId ? s.get(r.supervisorId) : null })), total, page, pageSize);
+  const body = await response.json();
+  return NextResponse.json({ ...body, totals: totals._sum });
 }, { feature: "labour" });
 export const POST = route(async ({ req, user }) => {
   const body = labourSchema.parse(await req.json()); const record = await prisma.labourVendor.create({ data: { vendorCode: await nextCode("LAB", "labour-vendor"), name: body.name, contactPhone: emptyToNull(body.contactPhone), trade: emptyToNull(body.trade), contractorId: emptyToNull(body.contractorId), districtId: emptyToNull(body.districtId), mandalId: emptyToNull(body.mandalId), projectId: emptyToNull(body.projectId), supervisorId: emptyToNull(body.supervisorId), workerCount: body.workerCount, rateType: emptyToNull(body.rateType) } });

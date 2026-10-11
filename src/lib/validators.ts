@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-export const beneficiaryCreateSchema = z.object({
+const beneficiaryBaseSchema = z.object({
   name: z.string().min(3),
   guardianName: z.string().optional(),
   gender: z.enum(["Male", "Female", "Other"]).optional(),
@@ -19,6 +19,7 @@ export const beneficiaryCreateSchema = z.object({
   districtId: z.string().min(1, "District is required"),
   mandalId: z.string().min(1, "Mandal is required"),
   villageId: z.string().min(1, "Village is required"),
+  otherVillageName: z.string().trim().optional(),
   pinCode: z.string().optional(),
   latitude: z.coerce.number().optional(),
   longitude: z.coerce.number().optional(),
@@ -33,7 +34,13 @@ export const beneficiaryCreateSchema = z.object({
   projectId: z.string().optional(),
 });
 
-export const beneficiaryUpdateSchema = beneficiaryCreateSchema.partial().extend({
+export const beneficiaryCreateSchema = beneficiaryBaseSchema.superRefine((value, ctx) => {
+  if (value.villageId === "__other__" && !value.otherVillageName) {
+    ctx.addIssue({ code: "custom", path: ["otherVillageName"], message: "Enter the village name" });
+  }
+});
+
+export const beneficiaryUpdateSchema = beneficiaryBaseSchema.partial().extend({
   status: z
     .enum([
       "APPLIED", "VERIFICATION_PENDING", "VERIFIED", "REJECTED", "APPROVED",
@@ -73,4 +80,7 @@ export const stageUpdateSchema = z.object({
   remarks: z.string().optional(),
   stageCost: z.coerce.number().min(0).optional(),
   labourVendorId: z.string().nullable().optional(),
+  billValue: z.coerce.number().min(0).optional(),
+  receivedAmount: z.coerce.number().min(0).optional(),
+  onlineStatus: z.string().trim().max(80).nullable().optional(),
 });

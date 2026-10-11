@@ -31,6 +31,25 @@ export async function createBeneficiary(
   ]);
 
   const aadhaar = input.aadhaar && input.aadhaar.length === 12 ? input.aadhaar : null;
+  let villageId = input.villageId;
+  if (villageId === "__other__") {
+    const name = input.otherVillageName!.trim();
+    const existingVillage = await prisma.village.findFirst({
+      where: { mandalId: input.mandalId, name: { equals: name, mode: "insensitive" } },
+      select: { id: true },
+    });
+    if (existingVillage) {
+      villageId = existingVillage.id;
+    } else {
+      const code = `CUSTOM-${createHash("sha1").update(`${input.mandalId}:${name.toLowerCase()}`).digest("hex").slice(0, 12).toUpperCase()}`;
+      const village = await prisma.village.upsert({
+        where: { code },
+        update: { name, mandalId: input.mandalId, pinCode: input.pinCode || null },
+        create: { code, name, mandalId: input.mandalId, pinCode: input.pinCode || null },
+      });
+      villageId = village.id;
+    }
+  }
 
   return prisma.beneficiary.create({
     data: {
@@ -52,7 +71,7 @@ export async function createBeneficiary(
       stateId: state.id,
       districtId: input.districtId,
       mandalId: input.mandalId,
-      villageId: input.villageId,
+      villageId,
       pinCode: input.pinCode,
       latitude: input.latitude,
       longitude: input.longitude,

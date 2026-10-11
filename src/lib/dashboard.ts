@@ -122,9 +122,11 @@ export async function getDashboardKpis(
   ).length;
 
   const fundsReceived = fundAgg._sum.amount ?? 0;
-  // Total expenditure = approved site expenses + capitalised construction cost booked against houses
-  const totalExpenditure =
-    (expenseAgg._sum.amount ?? 0) + (houseAgg._sum.actualCost ?? 0);
+  // Money actually spent: approved site expenses + vendor payments. House.actualCost is
+  // the amount RECEIVED from TSHCL per stage (income), so it is reported separately and
+  // must not be added here.
+  const totalExpenditure = expenseAgg._sum.amount ?? 0;
+  const constructionReceived = houseAgg._sum.actualCost ?? 0;
   const amountReleased = releasedPaymentAgg._sum.releasedAmount ?? 0;
   const totalProjectValue =
     (projectBudgetAgg._sum.approvedBudget ?? 0) || (houseAgg._sum.estimatedCost ?? 0);
@@ -144,6 +146,7 @@ export async function getDashboardKpis(
     fundsReceived,
     amountReleased,
     totalExpenditure,
+    constructionReceived,
     pendingPayments: pendingPaymentAgg._sum.eligibleAmount ?? 0,
     inventoryValue,
     lowStockItems,

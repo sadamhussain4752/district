@@ -55,6 +55,7 @@ export default function ExecutiveMisPage() {
           <Line label="Overall Completion" value={pct(k.overallCompletionPct)} tone="navy" />
           <Line label="Approved Budget" value={formatINRCompact(k.totalProjectValue)} />
           <Line label="Funds Received" value={formatINRCompact(k.fundsReceived)} />
+          <Line label="Stage Money Received" value={formatINRCompact(k.constructionReceived)} />
           <Line label="Total Expenditure" value={formatINRCompact(k.totalExpenditure)} />
           <Line label="Available Balance" value={formatINRCompact(k.availableBalance)} />
           <Line label="Material / Inventory Value" value={formatINRCompact(k.inventoryValue)} />

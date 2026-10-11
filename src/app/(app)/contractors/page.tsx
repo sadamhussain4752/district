@@ -1,4 +1,5 @@
 "use client";
+import Link from "next/link";
 import { PageHeader } from "@/components/page-header";
 import { DataTable, type Column } from "@/components/data-table";
 import { StatusBadge } from "@/components/status-badge";
@@ -41,9 +42,9 @@ const columns: Column<Row>[] = [
     key: "houses",
     header: "Houses (done/total)",
     render: (r) => (
-      <span className="tabular-nums">
+      <Link href={`/construction?contractorId=${r.id}`} className="tabular-nums text-primary hover:underline">
         {r.completedHouses}/{r.assignedHouses}
-      </span>
+      </Link>
     ),
   },
   {

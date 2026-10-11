@@ -194,6 +194,9 @@ function parseMappedList(wb: XLSX.WorkBook) {
     const row = rows[r];
     const appId = String(row[idx.appId] ?? "").trim();
     if (!appId) continue;
+    // Stray rows carrying only an application id (no name, no district) would
+    // otherwise create a blank district in the location masters.
+    if (!String(row[idx.district] ?? "").trim() && !String(row[idx.name] ?? "").trim()) continue;
     if (seen.has(appId)) {
       dupes.push(appId);
       continue;
@@ -321,6 +324,9 @@ function parseInventory(wb: XLSX.WorkBook) {
     const row = rows[r];
     const appId = String(row[idx.appId] ?? "").trim();
     if (!appId) continue;
+    // Stray rows carrying only an application id (no name, no district) would
+    // otherwise create a blank district in the location masters.
+    if (!String(row[idx.district] ?? "").trim() && !String(row[idx.name] ?? "").trim()) continue;
     const raw = String(row[idx.stage] ?? "").trim().toUpperCase();
     const stageKey = STAGE_ALIASES[raw];
     if (!stageKey) {
