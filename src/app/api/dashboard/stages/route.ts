@@ -32,15 +32,19 @@ export const GET = route(
       const count = (group: readonly string[]) =>
         rows.filter((r) => group.includes(r.status)).reduce((a, r) => a + r._count, 0);
       const done = count(STAGE_STATUS_GROUPS.done);
-      const started = count(STAGE_STATUS_GROUPS.started);
+      const inProgress = count(STAGE_STATUS_GROUPS.started);
+      // "Started" = the stage has been reached at all, i.e. it has a row in the
+      // TSHCL register — done plus still in progress, as the workbook counts it.
+      const started = done + inProgress;
       const total = rows.reduce((a, r) => a + r._count, 0) || totalHouses;
       return {
         key: s.key,
         name: s.name,
         shortName: s.shortName,
         done,
+        inProgress,
         started,
-        notStarted: Math.max(0, total - done - started),
+        notStarted: Math.max(0, total - started),
         total,
         donePct: total ? Math.round((done / total) * 1000) / 10 : 0,
         billValue: billByStage.get(s.key)?.billValue ?? 0,

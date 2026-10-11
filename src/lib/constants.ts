@@ -56,6 +56,11 @@ export const CONSTRUCTION_STAGES: {
 export const STAGE_STATUS_GROUPS = {
   done: ["COMPLETED", "VERIFIED"],
   started: ["STARTED", "IN_PROGRESS", "PENDING_VERIFICATION", "REWORK_REQUIRED", "REJECTED"],
+  /** Reached at all — the stage has an entry in the TSHCL register. */
+  reached: [
+    "COMPLETED", "VERIFIED", "STARTED", "IN_PROGRESS",
+    "PENDING_VERIFICATION", "REWORK_REQUIRED", "REJECTED",
+  ],
   "not-started": ["NOT_STARTED"],
 } as const;
 
@@ -63,7 +68,8 @@ export type StageStatusGroup = keyof typeof STAGE_STATUS_GROUPS;
 
 export const STAGE_STATUS_GROUP_LABELS: Record<StageStatusGroup, string> = {
   done: "Done",
-  started: "Work Started",
+  started: "In Progress",
+  reached: "Started (done + in progress)",
   "not-started": "Not Started",
 };
 

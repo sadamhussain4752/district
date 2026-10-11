@@ -61,6 +61,7 @@ export default function DashboardPage() {
       ),
   });
   const stage = (stageStats.data?.stages ?? []).find((s: any) => s.key === stageKey);
+  const short = stage?.shortName ?? CONSTRUCTION_STAGES.find((s) => s.key === stageKey)?.shortName ?? "";
   const stageHref = (group: string) =>
     `/construction?stage=${stageKey}&stageStatus=${group}${districtId ? `&districtId=${districtId}` : ""}`;
 
@@ -88,20 +89,42 @@ export default function DashboardPage() {
         }
         breadcrumbs={[{ label: "Home" }, { label: "Dashboard" }]}
         actions={
-          <Link
-            href="/executive-mis"
-            className="text-sm font-medium text-primary hover:underline"
-          >
-            Executive MIS <ArrowRight className="inline h-3.5 w-3.5" />
-          </Link>
+          <>
+            <Select value={stageKey} onValueChange={setStageKey}>
+              <SelectTrigger className="h-9 w-48"><SelectValue placeholder="Stage" /></SelectTrigger>
+              <SelectContent>
+                {CONSTRUCTION_STAGES.map((s) => (
+                  <SelectItem key={s.key} value={s.key}>{s.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Link
+              href="/executive-mis"
+              className="text-sm font-medium text-primary hover:underline"
+            >
+              Executive MIS <ArrowRight className="inline h-3.5 w-3.5" />
+            </Link>
+          </>
         }
       />
 
       {/* Primary KPIs */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
         <KpiCard label="Beneficiaries" value={formatNumber(k?.totalBeneficiaries)} loading={loading} tone="navy" href="/beneficiaries" />
-        <KpiCard label="Not Started" value={formatNumber(k?.notStarted)} loading={loading} tone="warning" href="/construction?status=NOT_STARTED" />
-        <KpiCard label="Started" value={formatNumber(k?.constructionStarted)} loading={loading} href="/construction" />
+        <KpiCard
+          label={`${short} Not Started`}
+          value={formatNumber(stage?.notStarted)}
+          loading={stageStats.isLoading}
+          tone="warning"
+          href={stageHref("not-started")}
+        />
+        <KpiCard
+          label={`${short} Started`}
+          value={formatNumber(stage?.started)}
+          sub={`${formatNumber(stage?.done)} done · ${formatNumber(stage?.inProgress)} in progress`}
+          loading={stageStats.isLoading}
+          href={stageHref("reached")}
+        />
         <KpiCard label="Under Construction" value={formatNumber(k?.underConstruction)} loading={loading} href="/construction" />
         <KpiCard label="Completed" value={formatNumber(k?.completedHouses)} loading={loading} tone="success" />
         <KpiCard label="Delayed" value={formatNumber(k?.delayedHouses)} loading={loading} tone="destructive" href="/construction?health=delayed" />
@@ -148,9 +171,9 @@ export default function DashboardPage() {
               href={stageHref("done")}
             />
             <KpiCard
-              label="Work Started"
-              value={formatNumber(stage?.started)}
-              sub="In progress / awaiting verification"
+              label="In Progress"
+              value={formatNumber(stage?.inProgress)}
+              sub="Started, awaiting completion"
               tone="warning"
               loading={stageStats.isLoading}
               href={stageHref("started")}
