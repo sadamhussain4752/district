@@ -3,10 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { route, writeAudit, writeActivity, clientIp, HttpError } from "@/lib/api";
 import { stageUpdateSchema } from "@/lib/validators";
 import { recomputeHouse, syncBeneficiaryAndProject } from "@/lib/house";
-import { CONSTRUCTION_STAGES } from "@/lib/constants";
 import { isReadOnly } from "@/lib/rbac";
-
-const STAGE_META = new Map(CONSTRUCTION_STAGES.map((s) => [s.key, s]));
 
 export const PATCH = route(
   async ({ params, req, user }) => {
@@ -22,32 +19,11 @@ export const PATCH = route(
     const stage = house.stageProgress.find((s) => s.stageKey === input.stageKey);
     if (!stage) throw new HttpError(404, "Stage not found for this house");
 
-    const meta = STAGE_META.get(input.stageKey);
     const labourVendor = typeof input.labourVendorId === "string"
       ? await prisma.labourVendor.findUnique({ where: { id: input.labourVendorId }, select: { id: true, name: true, supervisorId: true } }).catch(() => null)
       : null;
     if (typeof input.labourVendorId === "string" && !labourVendor) {
       throw new HttpError(422, "Selected labour contractor was not found");
-    }
-
-    // Business rule: a QC stage cannot be marked COMPLETED/VERIFIED without a passing inspection.
-    if (
-      meta?.qc &&
-      (input.status === "COMPLETED" || input.status === "VERIFIED")
-    ) {
-      const passed = await prisma.qualityInspection.findFirst({
-        where: {
-          houseId: house.id,
-          stageKey: input.stageKey,
-          result: { in: ["PASSED", "PASSED_WITH_OBSERVATION"] },
-        },
-      });
-      if (!passed) {
-        throw new HttpError(
-          409,
-          `${meta.name} requires a passed quality inspection before it can be completed.`,
-        );
-      }
     }
 
     const before = {

@@ -5,7 +5,7 @@ import { route, writeAudit, clientIp } from "@/lib/api";
 import { nextCode } from "@/lib/sequence";
 import { INVENTORY_STAGE_OPTIONS } from "@/lib/constants";
 
-const inventoryStageKeys = INVENTORY_STAGE_OPTIONS.map((stage) => stage.key) as ["PC", "PB", "BL", "RL", "RC", "COMP"];
+const inventoryStageKeys = INVENTORY_STAGE_OPTIONS.map((stage) => stage.key) as ["BL", "RL", "RC", "COMP"];
 
 const createSchema = z.object({
   supplierId: z.string().optional(), supplierName: z.string().trim().min(2).optional(),
@@ -26,6 +26,7 @@ export const GET = route(async () => {
   const warehouseMap = new Map(warehouses.map((item) => [item.id, item.name]));
   const materialMap = new Map(materials.map((item) => [item.id, item.name]));
   const rows = orders.map((order) => ({ ...order,
+    stageKey: order.stageKey === "PC" || order.stageKey === "PB" ? "BL" : order.stageKey,
     supplierName: order.supplierId ? supplierMap.get(order.supplierId) ?? "Unknown supplier" : "—",
     warehouseName: order.warehouseId ? warehouseMap.get(order.warehouseId) ?? "Unknown location" : "—",
     itemSummary: order.items.map((item) => `${materialMap.get(item.materialId) ?? "Product"} · ${item.quantity} ${item.unit}`).join(", "),

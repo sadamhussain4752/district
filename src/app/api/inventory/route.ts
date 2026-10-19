@@ -49,7 +49,7 @@ export const GET = route(
         standardRate: material.standardRate,
         quantity: 0,
         value: 0,
-        stageQuantities: { PC: 0, PB: 0, BL: 0, RL: 0, RC: 0, COMP: 0 },
+        stageQuantities: { BL: 0, RL: 0, RC: 0, COMP: 0 },
       });
     }
     const materialNames = new Set(materials.map((material) => material.name.trim().toLocaleLowerCase("en-IN")));
@@ -64,7 +64,7 @@ export const GET = route(
         standardRate: 0,
         quantity: 0,
         value: 0,
-        stageQuantities: { PC: 0, PB: 0, BL: 0, RL: 0, RC: 0, COMP: 0 },
+        stageQuantities: { BL: 0, RL: 0, RC: 0, COMP: 0 },
       });
     }
     for (const s of stock) {
@@ -78,7 +78,7 @@ export const GET = route(
         standardRate: s.material.standardRate,
         quantity: 0,
         value: 0,
-        stageQuantities: { PC: 0, PB: 0, BL: 0, RL: 0, RC: 0, COMP: 0 },
+        stageQuantities: { BL: 0, RL: 0, RC: 0, COMP: 0 },
       };
       entry.quantity += Math.max(0, s.quantity);
       entry.value += typeof s.value === "number" ? s.value : s.quantity * s.material.standardRate;
@@ -86,8 +86,10 @@ export const GET = route(
     }
     for (const receipt of stageReceipts) {
       const entry = byMaterial.get(receipt.materialId);
-      if (!entry || !receipt.stageKey || !(receipt.stageKey in entry.stageQuantities)) continue;
-      entry.stageQuantities[receipt.stageKey] += receipt.quantity;
+      if (!entry || !receipt.stageKey) continue;
+      const stageKey = receipt.stageKey === "PC" || receipt.stageKey === "PB" ? "BL" : receipt.stageKey;
+      if (!(stageKey in entry.stageQuantities)) continue;
+      entry.stageQuantities[stageKey] += receipt.quantity;
     }
 
     const items = [...byMaterial.values()].map((m) => ({

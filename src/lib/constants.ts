@@ -103,8 +103,6 @@ export const APPROVAL_CHAIN = [
 
 /** Material planning / purchase stages used by the stage-wise inventory schedule. */
 export const INVENTORY_STAGE_OPTIONS = [
-  { key: "PC", label: "PC" },
-  { key: "PB", label: "PB" },
   { key: "BL", label: "BL" },
   { key: "RL", label: "RL" },
   { key: "RC", label: "RC" },

@@ -584,8 +584,8 @@ function StageForm({
           <Input value={remarks} onChange={(e) => setRemarks(e.target.value)} placeholder="Optional note" />
         </div>
         <p className="text-xs text-muted-foreground">
-          Completing a quality-checkpoint stage requires a passed inspection. House
-          completion % is recalculated automatically from all stage weights.
+          House completion % is recalculated automatically from all stage weights.
+          Quality inspection records remain available in the Quality tab.
         </p>
       </div>
       <DialogFooter className="mt-4">
