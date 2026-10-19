@@ -1,12 +1,14 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { route } from "@/lib/api";
+import { MATERIAL_PURCHASE_PRESETS } from "@/lib/constants";
 
 export const GET = route(
   async ({ req }) => {
     const warehouseId = req.nextUrl.searchParams.get("warehouseId") || undefined;
 
-    const [stock, warehouses, purchaseRows] = await Promise.all([
+    const [materials, stock, warehouses, purchaseRows, stageReceipts] = await Promise.all([
+      prisma.material.findMany({ orderBy: { name: "asc" } }),
       prisma.inventoryStock.findMany({
         where: warehouseId ? { warehouseId } : {},
         include: {
@@ -24,10 +26,47 @@ export const GET = route(
           ...(warehouseId ? { warehouseId } : {}),
         },
       }),
+      prisma.stockTransaction.findMany({
+        where: {
+          type: "PURCHASE_RECEIPT",
+          stageKey: { not: null },
+          ...(warehouseId ? { warehouseId } : {}),
+        },
+        select: { materialId: true, stageKey: true, quantity: true },
+      }),
     ]);
 
-    // Aggregate per material across warehouses (or filtered warehouse)
+    // Start with every material master so products without a received purchase
+    // remain visible as zero instead of disappearing from inventory.
     const byMaterial = new Map<string, any>();
+    for (const material of materials) {
+      byMaterial.set(material.id, {
+        id: material.id,
+        name: material.name,
+        category: material.category,
+        unit: material.unit,
+        reorderLevel: material.reorderLevel,
+        standardRate: material.standardRate,
+        quantity: 0,
+        value: 0,
+        stageQuantities: { PC: 0, PB: 0, BL: 0, RL: 0, RC: 0, COMP: 0 },
+      });
+    }
+    const materialNames = new Set(materials.map((material) => material.name.trim().toLocaleLowerCase("en-IN")));
+    for (const preset of MATERIAL_PURCHASE_PRESETS) {
+      if (materialNames.has(preset.name.toLocaleLowerCase("en-IN"))) continue;
+      byMaterial.set(`preset:${preset.key}`, {
+        id: `preset:${preset.key}`,
+        name: preset.name,
+        category: preset.category,
+        unit: preset.unit,
+        reorderLevel: 0,
+        standardRate: 0,
+        quantity: 0,
+        value: 0,
+        stageQuantities: { PC: 0, PB: 0, BL: 0, RL: 0, RC: 0, COMP: 0 },
+      });
+    }
     for (const s of stock) {
       const key = s.materialId;
       const entry = byMaterial.get(key) ?? {
@@ -39,10 +78,16 @@ export const GET = route(
         standardRate: s.material.standardRate,
         quantity: 0,
         value: 0,
+        stageQuantities: { PC: 0, PB: 0, BL: 0, RL: 0, RC: 0, COMP: 0 },
       };
-      entry.quantity += s.quantity;
+      entry.quantity += Math.max(0, s.quantity);
       entry.value += typeof s.value === "number" ? s.value : s.quantity * s.material.standardRate;
       byMaterial.set(key, entry);
+    }
+    for (const receipt of stageReceipts) {
+      const entry = byMaterial.get(receipt.materialId);
+      if (!entry || !receipt.stageKey || !(receipt.stageKey in entry.stageQuantities)) continue;
+      entry.stageQuantities[receipt.stageKey] += receipt.quantity;
     }
 
     const items = [...byMaterial.values()].map((m) => ({

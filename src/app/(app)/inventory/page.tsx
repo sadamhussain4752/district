@@ -16,6 +16,7 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { formatINRCompact, formatINR, formatNumber } from "@/lib/utils";
+import { INVENTORY_STAGE_OPTIONS } from "@/lib/constants";
 
 export default function InventoryPage() {
   const [warehouseId, setWarehouseId] = React.useState("all");
@@ -80,8 +81,16 @@ export default function InventoryPage() {
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead colSpan={2} />
+                <TableHead colSpan={INVENTORY_STAGE_OPTIONS.length} className="text-center">
+                  Received Purchase Quantity by Stage
+                </TableHead>
+                <TableHead colSpan={3} />
+              </TableRow>
+              <TableRow>
                 <TableHead>Material</TableHead>
                 <TableHead>Category</TableHead>
+                {INVENTORY_STAGE_OPTIONS.map((stage) => <TableHead key={stage.key} className="text-right">{stage.label}</TableHead>)}
                 <TableHead className="text-right">Stock Quantity</TableHead>
                 <TableHead className="text-right">Average Rate</TableHead>
                 <TableHead className="text-right">Stock Amount</TableHead>
@@ -92,6 +101,11 @@ export default function InventoryPage() {
                 <TableRow key={i.id}>
                   <TableCell className="font-medium">{i.name}</TableCell>
                   <TableCell className="text-sm text-muted-foreground">{i.category}</TableCell>
+                  {INVENTORY_STAGE_OPTIONS.map((stage) => (
+                    <TableCell key={stage.key} className="text-right tabular-nums">
+                      {formatNumber(i.stageQuantities?.[stage.key] ?? 0)}
+                    </TableCell>
+                  ))}
                   <TableCell className="text-right tabular-nums">
                     {formatNumber(i.quantity)} {i.unit}
                   </TableCell>
@@ -103,7 +117,7 @@ export default function InventoryPage() {
               ))}
               {!isLoading && !items.length && (
                 <TableRow>
-                  <TableCell colSpan={5} className="py-8 text-center text-sm text-muted-foreground">
+                  <TableCell colSpan={5 + INVENTORY_STAGE_OPTIONS.length} className="py-8 text-center text-sm text-muted-foreground">
                     No materials match.
                   </TableCell>
                 </TableRow>

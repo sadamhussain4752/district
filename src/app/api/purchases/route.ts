@@ -3,10 +3,14 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { route, writeAudit, clientIp } from "@/lib/api";
 import { nextCode } from "@/lib/sequence";
+import { INVENTORY_STAGE_OPTIONS } from "@/lib/constants";
+
+const inventoryStageKeys = INVENTORY_STAGE_OPTIONS.map((stage) => stage.key) as ["PC", "PB", "BL", "RL", "RC", "COMP"];
 
 const createSchema = z.object({
   supplierId: z.string().optional(), supplierName: z.string().trim().min(2).optional(),
   warehouseId: z.string().min(1), invoiceNo: z.string().trim().optional(), vehicleNo: z.string().trim().optional(),
+  stageKey: z.enum(inventoryStageKeys),
   materialId: z.string().optional(),
   newMaterial: z.object({ name: z.string().trim().min(2), category: z.string().trim().min(2), unit: z.string().trim().min(1) }).optional(),
   quantity: z.coerce.number().positive(), rate: z.coerce.number().nonnegative(),
@@ -40,11 +44,14 @@ export const POST = route(async ({ req, user }) => {
   if (!body.materialId && !body.newMaterial) return NextResponse.json({ error: "Select a product or enter a new product" }, { status: 422 });
   const supplier = body.supplierId ? await prisma.supplier.findUnique({ where: { id: body.supplierId } }) : await prisma.supplier.create({ data: { code: await nextCode("VEN", "supplier"), name: body.supplierName! } });
   if (!supplier) return NextResponse.json({ error: "Supplier not found" }, { status: 404 });
-  const material = body.materialId ? await prisma.material.findUnique({ where: { id: body.materialId } }) : await prisma.material.create({ data: { materialCode: await nextCode("MAT", "material"), name: body.newMaterial!.name, category: body.newMaterial!.category, unit: body.newMaterial!.unit, standardRate: body.rate } });
+  const material = body.materialId
+    ? await prisma.material.findUnique({ where: { id: body.materialId } })
+    : await prisma.material.findFirst({ where: { name: { equals: body.newMaterial!.name, mode: "insensitive" } } })
+      ?? await prisma.material.create({ data: { materialCode: await nextCode("MAT", "material"), name: body.newMaterial!.name, category: body.newMaterial!.category, unit: body.newMaterial!.unit, standardRate: body.rate } });
   if (!material) return NextResponse.json({ error: "Product not found" }, { status: 404 });
   const amount = body.quantity * body.rate;
   const order = await prisma.purchaseOrder.create({ data: {
-    poNo: await nextCode("PO", "purchase-order"), supplierId: supplier.id, warehouseId: body.warehouseId, status: "ORDERED",
+    poNo: await nextCode("PO", "purchase-order"), supplierId: supplier.id, warehouseId: body.warehouseId, stageKey: body.stageKey, status: "ORDERED",
     subTotal: amount, total: amount, invoiceNo: body.invoiceNo || null, vehicleNo: body.vehicleNo || null,
     items: { create: { materialId: material.id, quantity: body.quantity, unit: material.unit, rate: body.rate, amount } },
   }, include: { items: true } });

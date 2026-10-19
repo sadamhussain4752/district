@@ -21,7 +21,7 @@ export const POST = route(async ({ req, user, params }) => {
       create: { materialId: item.materialId, warehouseId: order.warehouseId, quantity: item.quantity, value: item.amount },
       update: { quantity: { increment: item.quantity }, value: { increment: item.amount } },
     });
-    await prisma.stockTransaction.create({ data: { txnNo: await nextCode("STK", "stock-transaction"), type: "PURCHASE_RECEIPT", materialId: item.materialId, warehouseId: order.warehouseId, quantity: item.quantity, balanceAfter, purpose: `Received against ${order.poNo}`, reference: grn.grnNo } });
+    await prisma.stockTransaction.create({ data: { txnNo: await nextCode("STK", "stock-transaction"), type: "PURCHASE_RECEIPT", materialId: item.materialId, warehouseId: order.warehouseId, quantity: item.quantity, balanceAfter, stageKey: order.stageKey, purpose: `Received against ${order.poNo}`, reference: grn.grnNo } });
   }
   const updated = await prisma.purchaseOrder.update({ where: { id: order.id }, data: { status: "RECEIVED" } });
   await writeAudit({ user, action: "UPDATE", module: "purchases", recordId: order.id, oldValue: order, newValue: updated, reason: `Received as ${grn.grnNo}`, ip: clientIp(req) });

@@ -6,6 +6,8 @@ import { DataTable, type Column } from "@/components/data-table";
 import { KpiCard } from "@/components/dashboard/kpi-card";
 import { StatusBadge } from "@/components/status-badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useFilters } from "@/components/app-shell/filters";
 import { formatDate, formatINR, formatINRCompact, formatNumber } from "@/lib/utils";
 
@@ -29,6 +31,12 @@ type Summary = {
   total: { amount: number; count: number };
   topCategories: { category: string; amount: number; count: number }[];
   categories: string[];
+  labourGroups: {
+    vendor: string;
+    amount: number;
+    count: number;
+    transactions: VendorPayment[];
+  }[];
 };
 
 const columns: Column<VendorPayment>[] = [
@@ -90,6 +98,54 @@ export default function VendorPaymentsPage() {
         <KpiCard loading={isLoading} label="Average Payment" value={formatINRCompact(average)} tone="warning" />
         <KpiCard loading={isLoading} label="Top Purpose" value={summary?.topCategories[0] ? formatINRCompact(summary.topCategories[0].amount) : "—"} sub={summary?.topCategories[0]?.category ?? "—"} tone="success" />
       </div>
+      {(summary?.labourGroups?.length ?? 0) > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Labour Contractor Groups</CardTitle>
+            <p className="text-sm text-muted-foreground">
+              {(summary?.labourGroups ?? []).length} contractors · {formatNumber((summary?.labourGroups ?? []).reduce((sum, group) => sum + group.count, 0))} transactions · {formatINRCompact((summary?.labourGroups ?? []).reduce((sum, group) => sum + group.amount, 0))}
+            </p>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {(summary?.labourGroups ?? []).map((group) => (
+              <details key={group.vendor.toLocaleLowerCase("en-IN")} className="group rounded-lg border bg-card">
+                <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-4 py-3 hover:bg-muted/40">
+                  <div>
+                    <div className="font-medium">{group.vendor}</div>
+                    <div className="text-xs text-muted-foreground">{formatNumber(group.count)} transaction{group.count === 1 ? "" : "s"}</div>
+                  </div>
+                  <div className="text-right">
+                    <div className="font-semibold tabular-nums">{formatINR(group.amount)}</div>
+                    <div className="text-xs text-primary">More information</div>
+                  </div>
+                </summary>
+                <div className="overflow-x-auto border-t">
+                  <Table>
+                    <TableHeader><TableRow>
+                      <TableHead>Date</TableHead><TableHead>Payment ID</TableHead><TableHead>Location</TableHead>
+                      <TableHead>Reference</TableHead><TableHead>Mode</TableHead><TableHead>Status</TableHead>
+                      <TableHead className="text-right">Amount</TableHead>
+                    </TableRow></TableHeader>
+                    <TableBody>
+                      {group.transactions.map((transaction) => (
+                        <TableRow key={transaction.id}>
+                          <TableCell className="whitespace-nowrap">{formatDate(transaction.date)}</TableCell>
+                          <TableCell>{transaction.expenseCode}</TableCell>
+                          <TableCell>{transaction.mandalName ?? transaction.districtName ?? "—"}</TableCell>
+                          <TableCell>{transaction.reference ?? "—"}</TableCell>
+                          <TableCell>{transaction.paymentMode ?? "—"}</TableCell>
+                          <TableCell><StatusBadge status={transaction.status} /></TableCell>
+                          <TableCell className="text-right font-medium tabular-nums">{formatINR(transaction.amount)}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </details>
+            ))}
+          </CardContent>
+        </Card>
+      )}
       <DataTable<VendorPayment>
         endpoint="/api/expenses"
         queryKey={["vendor-payments", query]}

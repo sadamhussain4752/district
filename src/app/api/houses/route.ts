@@ -9,7 +9,17 @@ export const GET = route(
     const sp = req.nextUrl.searchParams;
 
     const and: Record<string, unknown>[] = [scopeFilter(user)];
-    if (q) and.push({ houseCode: { contains: q, mode: "insensitive" } });
+    if (q) {
+      and.push({
+        OR: [
+          { houseCode: { contains: q, mode: "insensitive" } },
+          { beneficiary: { is: { name: { contains: q, mode: "insensitive" } } } },
+          { beneficiary: { is: { beneficiaryCode: { contains: q, mode: "insensitive" } } } },
+          { beneficiary: { is: { applicationId: { contains: q, mode: "insensitive" } } } },
+          { beneficiary: { is: { applicationNo: { contains: q, mode: "insensitive" } } } },
+        ],
+      });
+    }
     for (const key of ["districtId", "mandalId", "projectId", "contractorId", "labourVendorId", "supervisorId", "status"] as const) {
       const v = sp.get(key);
       if (v) and.push({ [key]: v });
@@ -42,7 +52,14 @@ export const GET = route(
           scheduleHealth: true, healthScore: true, currentStageName: true,
           plannedCompletion: true, estimatedCost: true, actualCost: true,
           labourVendorId: true,
-          beneficiary: { select: { name: true, beneficiaryCode: true } },
+          beneficiary: {
+            select: {
+              name: true,
+              beneficiaryCode: true,
+              applicationId: true,
+              applicationNo: true,
+            },
+          },
           district: { select: { name: true } },
           mandal: { select: { name: true } },
         },

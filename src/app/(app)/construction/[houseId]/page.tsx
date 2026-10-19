@@ -202,6 +202,7 @@ export default function HouseDetailPage() {
       <Card>
         <CardContent className="grid gap-4 pt-5 sm:grid-cols-2 lg:grid-cols-4">
           <F label="Beneficiary" value={`${h.beneficiary?.name} (${h.beneficiary?.beneficiaryCode})`} />
+          <F label="Application ID" value={h.beneficiary?.applicationId ?? h.beneficiary?.applicationNo} />
           <F label="District / Mandal / Village" value={`${h.beneficiary?.district?.name} / ${h.beneficiary?.mandal?.name} / ${h.beneficiary?.village?.name}`} />
           <F label="Contractor" value={h.contractor?.companyName} />
           <F
@@ -540,8 +541,7 @@ function StageForm({
   const [remarks, setRemarks] = React.useState(stage.remarks || "");
   const [labourVendorId, setLabourVendorId] = React.useState(stage.labourVendorId || house.labourVendorId || "__none");
   const labourParams = new URLSearchParams({ pageSize: "100", sort: "name", dir: "asc" });
-  if (house.districtId) labourParams.set("districtId", house.districtId);
-  const { data: labourData } = useQuery<any>({ queryKey: ["construction-labour-options", house.districtId], queryFn: () => fetch(`/api/labour?${labourParams}`).then(async (response) => { if (!response.ok) throw new Error((await response.json()).error || "Failed to load labour contractors"); return response.json(); }) });
+  const { data: labourData } = useQuery<any>({ queryKey: ["construction-labour-options"], queryFn: () => fetch(`/api/labour?${labourParams}`).then(async (response) => { if (!response.ok) throw new Error((await response.json()).error || "Failed to load labour contractors"); return response.json(); }) });
   const labourVendors = labourData?.data ?? [];
 
   return (
@@ -553,7 +553,7 @@ function StageForm({
             <SelectTrigger><SelectValue placeholder="Select labour contractor" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="__none">Not assigned</SelectItem>
-              {labourVendors.map((vendor: any) => <SelectItem key={vendor.id} value={vendor.id}>{vendor.name} · {vendor.vendorCode}{vendor.supervisorName ? ` · Supervisor: ${vendor.supervisorName}` : ""}</SelectItem>)}
+              {labourVendors.map((vendor: any) => <SelectItem key={vendor.id} value={vendor.id}>{vendor.name} · {vendor.vendorCode}{vendor.districtName ? ` · ${vendor.districtName}` : ""}{vendor.supervisorName ? ` · Supervisor: ${vendor.supervisorName}` : ""}</SelectItem>)}
             </SelectContent>
           </Select>
           {!labourVendors.length && <p className="text-xs text-muted-foreground">Add a matching labour contractor in the Labour master first.</p>}

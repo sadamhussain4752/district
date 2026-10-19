@@ -101,6 +101,32 @@ export const APPROVAL_CHAIN = [
   { key: "MD", label: "Managing Director (TSHCL)" },
 ] as const;
 
+/** Material planning / purchase stages used by the stage-wise inventory schedule. */
+export const INVENTORY_STAGE_OPTIONS = [
+  { key: "PC", label: "PC" },
+  { key: "PB", label: "PB" },
+  { key: "BL", label: "BL" },
+  { key: "RL", label: "RL" },
+  { key: "RC", label: "RC" },
+  { key: "COMP", label: "COMP" },
+] as const;
+
+/** Quick material options from the standard stage-wise construction schedule. */
+export const MATERIAL_PURCHASE_PRESETS = [
+  { key: "steel-12mm", name: "Steel 12 mm", category: "Steel", unit: "Kg" },
+  { key: "steel-10mm", name: "Steel 10 mm", category: "Steel", unit: "Kg" },
+  { key: "steel-8mm", name: "Steel 8 mm", category: "Steel", unit: "Kg" },
+  { key: "aggregate-12mm", name: "Aggregate 12 mm", category: "Aggregate", unit: "Cu.m" },
+  { key: "aggregate-20mm", name: "Aggregate 20 mm", category: "Aggregate", unit: "Cu.m" },
+  { key: "wet-mix", name: "Wet Mix", category: "Aggregate", unit: "Cu.m" },
+  { key: "m-sand", name: "M-Sand", category: "Sand", unit: "Cu.m" },
+  { key: "sand", name: "Sand", category: "Sand", unit: "Cu.m" },
+  { key: "adhesive-cement", name: "Adhesive Cement", category: "Cement", unit: "Bags" },
+  { key: "normal-cement", name: "Normal Cement", category: "Cement", unit: "Bags" },
+  { key: "rmc", name: "RMC", category: "Concrete", unit: "Cu.m" },
+  { key: "brick", name: "Brick", category: "Masonry", unit: "Nos" },
+] as const;
+
 export const PAYMENT_MODES = [
   "ICICI Card",
   "Golden Rock Card",

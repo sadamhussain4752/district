@@ -940,6 +940,7 @@ model PurchaseOrder {
   supplierId   String?        @db.ObjectId
   warehouseId  String?        @db.ObjectId
   districtId   String?        @db.ObjectId
+  stageKey     String?
   status       PurchaseStatus @default(DRAFT)
   subTotal     Float          @default(0)
   gst          Float          @default(0)

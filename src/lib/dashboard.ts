@@ -3,6 +3,7 @@ import type { SessionUser } from "./auth";
 import { scopeFilter } from "./rbac";
 import type { DashboardKpis, DistrictStat } from "./types";
 import { clampPct } from "./utils";
+import { STAGE_STATUS_GROUPS } from "./constants";
 
 export type DashboardFilter = {
   districtId?: string | null;
@@ -47,7 +48,6 @@ export async function getDashboardKpis(
     releasedPaymentAgg,
     stock,
     materials,
-    projectBudgetAgg,
     cancelledCount,
   ] = await Promise.all([
     prisma.beneficiary.count({ where: bWhere }),
@@ -65,11 +65,27 @@ export async function getDashboardKpis(
       _avg: { progressPct: true },
     }),
     prisma.house.count({ where: { AND: [hWhere, { status: "NOT_STARTED" }] } }),
+    // Construction counts as under way once Basement Level is reached — Auger
+    // Filing alone is not construction. Matches the BL figure in the register.
     prisma.house.count({
-      where: { AND: [hWhere, { status: { in: ["IN_PROGRESS", "UNDER_CONSTRUCTION"] } }] },
+      where: {
+        AND: [
+          hWhere,
+          { stageProgress: { some: { stageKey: "BL", status: { in: [...STAGE_STATUS_GROUPS.reached] } } } },
+        ],
+      },
     }),
     prisma.house.count({
-      where: { AND: [hWhere, { status: { in: ["COMPLETED", "HANDED_OVER"] } }] },
+      where: {
+        AND: [
+          hWhere,
+          {
+            stageProgress: {
+              some: { stageKey: "COMP", status: { in: [...STAGE_STATUS_GROUPS.done] } },
+            },
+          },
+        ],
+      },
     }),
     prisma.house.count({
       where: { AND: [hWhere, { status: { notIn: ["NOT_STARTED"] } }] },
@@ -104,10 +120,6 @@ export async function getDashboardKpis(
       select: { quantity: true, material: { select: { standardRate: true, reorderLevel: true } } },
     }),
     prisma.material.count(),
-    prisma.project.aggregate({
-      where: filter.districtId ? { districtId: filter.districtId } : {},
-      _sum: { approvedBudget: true },
-    }),
     prisma.beneficiary.count({
       where: { AND: [bWhere, { status: { in: ["CANCELLED", "REJECTED", "ON_HOLD"] } }] },
     }),
@@ -128,8 +140,10 @@ export async function getDashboardKpis(
   const totalExpenditure = expenseAgg._sum.amount ?? 0;
   const constructionReceived = houseAgg._sum.actualCost ?? 0;
   const amountReleased = releasedPaymentAgg._sum.releasedAmount ?? 0;
-  const totalProjectValue =
-    (projectBudgetAgg._sum.approvedBudget ?? 0) || (houseAgg._sum.estimatedCost ?? 0);
+  // Project value is recognized once a house reaches Basement Level (BL).
+  // Each BL-started house carries the sanctioned project value of ₹5 lakh.
+  const totalProjectCount = underConstruction;
+  const totalProjectValue = totalProjectCount * 500_000;
 
   return {
     totalApplications,
@@ -142,6 +156,7 @@ export async function getDashboardKpis(
     completedHouses,
     delayedHouses,
     cancelledCount,
+    totalProjectCount,
     totalProjectValue,
     fundsReceived,
     amountReleased,
@@ -195,7 +210,12 @@ export async function getDistrictStats(
         where: { districtId: d.id, status: { in: ["IN_PROGRESS", "UNDER_CONSTRUCTION"] } },
       }),
       prisma.house.count({
-        where: { districtId: d.id, status: { in: ["COMPLETED", "HANDED_OVER"] } },
+        where: {
+          districtId: d.id,
+          stageProgress: {
+            some: { stageKey: "COMP", status: { in: [...STAGE_STATUS_GROUPS.done] } },
+          },
+        },
       }),
       prisma.house.count({
         where: { districtId: d.id, status: { not: "NOT_STARTED" } },

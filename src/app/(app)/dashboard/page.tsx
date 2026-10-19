@@ -126,7 +126,14 @@ export default function DashboardPage() {
           href={stageHref("reached")}
         />
         <KpiCard label="Under Construction" value={formatNumber(k?.underConstruction)} loading={loading} href="/construction" />
-        <KpiCard label="Completed" value={formatNumber(k?.completedHouses)} loading={loading} tone="success" />
+        <KpiCard
+          label="Completed"
+          value={formatNumber(k?.completedHouses)}
+          sub="Uploaded COMP records"
+          loading={loading}
+          tone="success"
+          href="/construction?stage=COMP&stageStatus=done"
+        />
         <KpiCard label="Delayed" value={formatNumber(k?.delayedHouses)} loading={loading} tone="destructive" href="/construction?health=delayed" />
         <KpiCard label="Cancelled" value={formatNumber(k?.cancelledCount)} loading={loading} tone="destructive" />
         <KpiCard label="Overall Completion" value={pct(k?.overallCompletionPct)} loading={loading} tone="navy" />
@@ -134,7 +141,14 @@ export default function DashboardPage() {
 
       {/* Financial KPIs */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-6">
-        <KpiCard label="Total Project Value" value={formatINRCompact(k?.totalProjectValue)} loading={loading} tone="navy" />
+        <KpiCard
+          label="Total Project Value"
+          value={formatINRCompact(k?.totalProjectValue)}
+          sub={`${formatNumber(k?.totalProjectCount)} BL started × ₹5 lakh`}
+          loading={loading}
+          tone="navy"
+          href="/construction?stage=BL&stageStatus=reached"
+        />
         <KpiCard label="Govt Funds Received" value={formatINRCompact(k?.fundsReceived)} loading={loading} tone="success" href="/funds" />
         <KpiCard label="Amount Released" value={formatINRCompact(k?.amountReleased)} loading={loading} href="/payments" />
         <KpiCard label="Stage Money Received" value={formatINRCompact(k?.constructionReceived)} loading={loading} tone="success" href="/construction" />

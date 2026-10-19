@@ -26,7 +26,12 @@ type Row = {
   currentStageName: string | null;
   estimatedCost: number;
   actualCost: number;
-  beneficiary: { name: string; beneficiaryCode: string } | null;
+  beneficiary: {
+    name: string;
+    beneficiaryCode: string;
+    applicationId: string | null;
+    applicationNo: string;
+  } | null;
   district: { name: string } | null;
   mandal: { name: string } | null;
   labourVendor: { name: string; vendorCode: string } | null;
@@ -42,6 +47,9 @@ const columns: Column<Row>[] = [
         <div className="font-medium">{r.houseCode}</div>
         <div className="text-xs text-muted-foreground">
           {r.beneficiary?.name}
+        </div>
+        <div className="text-xs tabular-nums text-muted-foreground">
+          Application ID: {r.beneficiary?.applicationId ?? r.beneficiary?.applicationNo ?? "—"}
         </div>
       </div>
     ),
@@ -176,7 +184,7 @@ function ConstructionList() {
           supervisorId,
         }}
         rowHref={(r) => `/construction/${r.id}`}
-        searchPlaceholder="Search house code…"
+        searchPlaceholder="Search house, beneficiary or Application ID…"
         exportName="houses"
         toolbar={
           <>

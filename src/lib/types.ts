@@ -30,6 +30,8 @@ export type DashboardKpis = {
   completedHouses: number;
   delayedHouses: number;
   cancelledCount: number;
+  /** Houses that have reached Basement Level and are included in project value. */
+  totalProjectCount: number;
   totalProjectValue: number;
   fundsReceived: number;
   amountReleased: number;

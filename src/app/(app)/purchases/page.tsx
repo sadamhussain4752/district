@@ -15,9 +15,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { formatDate, formatINR, formatINRCompact, formatNumber } from "@/lib/utils";
+import { INVENTORY_STAGE_OPTIONS, MATERIAL_PURCHASE_PRESETS } from "@/lib/constants";
 
 type Option = { id: string; name: string; unit?: string };
-type Purchase = { id: string; poNo: string; poDate: string; supplierName: string; warehouseName: string; itemSummary: string; total: number; status: string; grnNo: string | null };
+type Purchase = { id: string; poNo: string; poDate: string; supplierName: string; warehouseName: string; stageKey: string | null; itemSummary: string; total: number; status: string; grnNo: string | null };
 type Data = { rows: Purchase[]; suppliers: Option[]; warehouses: Option[]; materials: Option[]; summary: { orders: number; orderedAmount: number; pending: number; received: number } };
 
 async function post(url: string, body?: unknown) {
@@ -44,25 +45,35 @@ export default function PurchasesPage() {
       <KpiCard label="Awaiting Receipt" value={formatNumber(data.summary.pending)} tone="warning" />
       <KpiCard label="Received" value={formatNumber(data.summary.received)} tone="success" />
     </div>}
-    <Card><CardContent className="pt-5"><Table><TableHeader><TableRow><TableHead>PO / Date</TableHead><TableHead>Supplier</TableHead><TableHead>Inventory Location</TableHead><TableHead>Products</TableHead><TableHead className="text-right">Amount</TableHead><TableHead>Status</TableHead><TableHead className="text-right">Action</TableHead></TableRow></TableHeader><TableBody>
-      {(data?.rows ?? []).map((row) => <TableRow key={row.id}><TableCell><div className="font-medium">{row.poNo}</div><div className="text-xs text-muted-foreground">{formatDate(row.poDate)}</div></TableCell><TableCell>{row.supplierName}</TableCell><TableCell>{row.warehouseName}</TableCell><TableCell className="max-w-xs">{row.itemSummary}</TableCell><TableCell className="text-right font-medium tabular-nums">{formatINR(row.total)}</TableCell><TableCell><StatusBadge status={row.status} />{row.grnNo && <div className="mt-1 text-xs text-muted-foreground">{row.grnNo}</div>}</TableCell><TableCell className="text-right">{row.status === "RECEIVED" ? <span className="text-xs text-muted-foreground">In inventory</span> : <Button size="sm" variant="outline" disabled={receive.isPending} onClick={() => receive.mutate(row.id)}>{receive.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <PackageCheck className="h-4 w-4" />} Receive</Button>}</TableCell></TableRow>)}
-      {!isLoading && !data?.rows.length && <TableRow><TableCell colSpan={7} className="py-10 text-center text-sm text-muted-foreground">No purchase orders yet. Create one, then receive it to add stock.</TableCell></TableRow>}
+    <Card><CardContent className="pt-5"><Table><TableHeader><TableRow><TableHead>PO / Date</TableHead><TableHead>Stage</TableHead><TableHead>Supplier</TableHead><TableHead>Inventory Location</TableHead><TableHead>Products</TableHead><TableHead className="text-right">Amount</TableHead><TableHead>Status</TableHead><TableHead className="text-right">Action</TableHead></TableRow></TableHeader><TableBody>
+      {(data?.rows ?? []).map((row) => <TableRow key={row.id}><TableCell><div className="font-medium">{row.poNo}</div><div className="text-xs text-muted-foreground">{formatDate(row.poDate)}</div></TableCell><TableCell className="font-medium">{row.stageKey ?? "—"}</TableCell><TableCell>{row.supplierName}</TableCell><TableCell>{row.warehouseName}</TableCell><TableCell className="max-w-xs">{row.itemSummary}</TableCell><TableCell className="text-right font-medium tabular-nums">{formatINR(row.total)}</TableCell><TableCell><StatusBadge status={row.status} />{row.grnNo && <div className="mt-1 text-xs text-muted-foreground">{row.grnNo}</div>}</TableCell><TableCell className="text-right">{row.status === "RECEIVED" ? <span className="text-xs text-muted-foreground">In inventory</span> : <Button size="sm" variant="outline" disabled={receive.isPending} onClick={() => receive.mutate(row.id)}>{receive.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <PackageCheck className="h-4 w-4" />} Receive</Button>}</TableCell></TableRow>)}
+      {!isLoading && !data?.rows.length && <TableRow><TableCell colSpan={8} className="py-10 text-center text-sm text-muted-foreground">No purchase orders yet. Create one, then receive it to add stock.</TableCell></TableRow>}
     </TableBody></Table></CardContent></Card>
     <PurchaseDialog open={open} onClose={() => setOpen(false)} data={data} />
   </div>;
 }
 
-const EMPTY = { supplierId: "new", supplierName: "", warehouseId: "", materialId: "", productName: "", category: "", unit: "Nos", quantity: "", rate: "", invoiceNo: "", vehicleNo: "" };
+const EMPTY = { supplierId: "new", supplierName: "", warehouseId: "", stageKey: "", materialId: "", productName: "", category: "", unit: "Nos", quantity: "", rate: "", invoiceNo: "", vehicleNo: "" };
 
 function PurchaseDialog({ open, onClose, data }: { open: boolean; onClose: () => void; data?: Data }) {
   const qc = useQueryClient();
   const [form, setForm] = React.useState(EMPTY);
   const set = (key: keyof typeof form) => (value: string) => setForm((current) => ({ ...current, [key]: value }));
-  const isNewProduct = form.materialId === "new";
+  const isNewProduct = form.materialId === "new" || form.materialId.startsWith("preset:");
+  const setMaterial = (value: string) => {
+    const preset = value.startsWith("preset:")
+      ? MATERIAL_PURCHASE_PRESETS.find((item) => item.key === value.slice(7))
+      : undefined;
+    setForm((current) => ({
+      ...current,
+      materialId: value,
+      ...(preset ? { productName: preset.name, category: preset.category, unit: preset.unit } : {}),
+    }));
+  };
   const mutation = useMutation({
     mutationFn: () => post("/api/purchases", {
       supplierId: form.supplierId !== "new" ? form.supplierId : undefined, supplierName: form.supplierId === "new" ? form.supplierName : undefined,
-      warehouseId: form.warehouseId, materialId: form.materialId && !isNewProduct ? form.materialId : undefined,
+      warehouseId: form.warehouseId, stageKey: form.stageKey, materialId: form.materialId && !isNewProduct ? form.materialId : undefined,
       newMaterial: isNewProduct ? { name: form.productName, category: form.category, unit: form.unit } : undefined,
       quantity: Number(form.quantity), rate: Number(form.rate), invoiceNo: form.invoiceNo, vehicleNo: form.vehicleNo,
     }),
@@ -74,7 +85,8 @@ function PurchaseDialog({ open, onClose, data }: { open: boolean; onClose: () =>
     <Field label="Supplier"><Select value={form.supplierId} onValueChange={set("supplierId")}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="new">+ New supplier</SelectItem>{data?.suppliers.map((item) => <SelectItem key={item.id} value={item.id}>{item.name}</SelectItem>)}</SelectContent></Select></Field>
     {form.supplierId === "new" && <Field label="New supplier name"><Input required value={form.supplierName} onChange={(e) => set("supplierName")(e.target.value)} /></Field>}
     <Field label="Inventory location"><Select value={form.warehouseId} onValueChange={set("warehouseId")}><SelectTrigger><SelectValue placeholder="Select location" /></SelectTrigger><SelectContent>{data?.warehouses.map((item) => <SelectItem key={item.id} value={item.id}>{item.name}</SelectItem>)}</SelectContent></Select></Field>
-    <Field label="Product"><Select value={form.materialId} onValueChange={set("materialId")}><SelectTrigger><SelectValue placeholder="Select product" /></SelectTrigger><SelectContent><SelectItem value="new">+ Add new product</SelectItem>{data?.materials.map((item) => <SelectItem key={item.id} value={item.id}>{item.name} ({item.unit})</SelectItem>)}</SelectContent></Select></Field>
+    <Field label="Construction stage"><Select required value={form.stageKey} onValueChange={set("stageKey")}><SelectTrigger><SelectValue placeholder="Select stage" /></SelectTrigger><SelectContent>{INVENTORY_STAGE_OPTIONS.map((stage) => <SelectItem key={stage.key} value={stage.key}>{stage.label}</SelectItem>)}</SelectContent></Select></Field>
+    <Field label="Product"><Select value={form.materialId} onValueChange={setMaterial}><SelectTrigger><SelectValue placeholder="Select product" /></SelectTrigger><SelectContent><SelectItem value="new">+ Add custom product</SelectItem>{MATERIAL_PURCHASE_PRESETS.filter((preset) => !(data?.materials ?? []).some((material) => material.name.toLocaleLowerCase("en-IN") === preset.name.toLocaleLowerCase("en-IN"))).map((preset) => <SelectItem key={preset.key} value={`preset:${preset.key}`}>+ {preset.name} ({preset.unit})</SelectItem>)}{data?.materials.map((item) => <SelectItem key={item.id} value={item.id}>{item.name} ({item.unit})</SelectItem>)}</SelectContent></Select></Field>
     {isNewProduct && <><Field label="Product name"><Input required value={form.productName} onChange={(e) => set("productName")(e.target.value)} /></Field><Field label="Category"><Input required value={form.category} onChange={(e) => set("category")(e.target.value)} /></Field><Field label="Unit"><Input required placeholder="Nos, Bags, Cu.m, MT…" value={form.unit} onChange={(e) => set("unit")(e.target.value)} /></Field></>}
     <Field label="Quantity"><Input required type="number" min="0.001" step="any" value={form.quantity} onChange={(e) => set("quantity")(e.target.value)} /></Field>
     <Field label="Rate"><Input required type="number" min="0" step="any" value={form.rate} onChange={(e) => set("rate")(e.target.value)} /></Field>

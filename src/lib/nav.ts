@@ -17,7 +17,6 @@ export const NAV_ITEMS: NavItem[] = [
   { label: "Projects", href: "/projects", icon: "FolderKanban", feature: "projects", group: "Field Operations" },
   { label: "Construction", href: "/construction", icon: "Building2", feature: "construction", group: "Field Operations" },
 
-  { label: "Contractors", href: "/contractors", icon: "HardHat", feature: "contractors", group: "Resources" },
   { label: "Supervisors", href: "/supervisors", icon: "UserCog", feature: "supervisors", group: "Resources" },
   { label: "Labour", href: "/labour", icon: "Hammer", feature: "labour", group: "Resources" },
 

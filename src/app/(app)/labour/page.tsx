@@ -155,12 +155,12 @@ function LabourPage() {
       />
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <KpiCard label="Houses Claimed" tone="navy"
+        <KpiCard label="Stage Claims" tone="navy"
           value={formatNumber(
             (totals?.augerCount ?? 0) + (totals?.blCount ?? 0) + (totals?.rlCount ?? 0) +
             (totals?.rcCount ?? 0) + (totals?.compCount ?? 0),
           )}
-          sub={`Auger ${formatNumber(totals?.augerCount ?? 0)} · BL ${formatNumber(totals?.blCount ?? 0)} · RL ${formatNumber(totals?.rlCount ?? 0)} · RC ${formatNumber(totals?.rcCount ?? 0)}`}
+          sub={`Stages claimed, not houses · Auger ${formatNumber(totals?.augerCount ?? 0)} · BL ${formatNumber(totals?.blCount ?? 0)} · RL ${formatNumber(totals?.rlCount ?? 0)} · RC ${formatNumber(totals?.rcCount ?? 0)} · COMP ${formatNumber(totals?.compCount ?? 0)}`}
         />
         <KpiCard label="Net Payable" value={formatINRCompact(totals?.netPayable)}
           sub={`Gross ${formatINRCompact(totals?.claimAmount)} · TDS ${formatINRCompact(totals?.tdsAmount)}`} />
